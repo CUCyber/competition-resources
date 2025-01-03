@@ -1,8 +1,9 @@
 # Author: Dylan Harvey
-# Script for removing common runkeys. (WIP)
+# Script for removing common runkeys.
 
 #Requires -RunAsAdministrator
 
+# May want to add a more extensive list of common runkeys/hidden paths etc
 $RunKeys = @(
     "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
     "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce",
@@ -12,6 +13,7 @@ $RunKeys = @(
 
 # Clear all values in the keys
 foreach ($Key in $RunKeys) {
-    Remove-ItemProperty -Path $Key -Name * -ErrorAction SilentlyContinue
+    Remove-Item -Path $Key -Recurse -Force # -ErrorAction SilentlyContinue
 }
 
+Pause
