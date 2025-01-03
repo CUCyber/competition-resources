@@ -5,16 +5,16 @@
 #Requires -RunAsAdministrator
 
 # Remove all scheduled tasks
-Write-Host "Removing scheduled tasks..." -ForegroundColor Yellow
+Write-Host "Removing scheduled tasks..."
 Remove-Item -Path "$RegPath\Tasks" -Recurse -Force # -ErrorAction SilentlyContinue
 
 # Restart the Task Scheduler service
-Write-Host "Restarting Task Scheduler service..." -ForegroundColor Yellow
+Write-Host "Restarting Task Scheduler service..."
 Stop-Service -Name Schedule -Force
 Start-Service -Name Schedule
 
 # Kill task processes (Restart-Service Should handle this; precautionary)
-Write-Host "Killing task-related processes..." -ForegroundColor Yellow
+Write-Host "Killing task-related processes..."
 Get-Process -Name taskhostw | Stop-Process -Force
 
 Pause
