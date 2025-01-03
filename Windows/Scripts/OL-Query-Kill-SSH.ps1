@@ -1,5 +1,5 @@
 # Author: Dylan Harvey
-# One-Liners for querying and killing SSH sessions. (WIP)
+# One-Liners for querying and killing SSH sessions.
 
 #Requires -RunAsAdministrator
 
