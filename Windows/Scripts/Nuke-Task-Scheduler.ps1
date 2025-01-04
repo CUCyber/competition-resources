@@ -8,10 +8,9 @@
 Write-Host "Removing scheduled tasks..."
 Remove-Item -Path "$RegPath\Tasks" -Recurse -Force # -ErrorAction SilentlyContinue
 
-# Restart the Task Scheduler service
-Write-Host "Restarting Task Scheduler service..."
+# Stop the Task Scheduler service
+Write-Host "Stopping Task Scheduler service..."
 Stop-Service -Name Schedule -Force
-Start-Service -Name Schedule
 
 # Kill task processes (Restart-Service Should handle this; precautionary)
 Write-Host "Killing task-related processes..."
