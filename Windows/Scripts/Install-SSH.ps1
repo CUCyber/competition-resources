@@ -9,7 +9,7 @@ function Install-SSH {
     $response=$request.GetResponse()
     $latest = $([String]$response.GetResponseHeader("Location")).Replace('tag','download') + '/OpenSSH-Win64.zip'  
 
-    echo "Downloading the latest OpenSSH Server.."
+    Write-Output "Downloading the latest OpenSSH Server.."
     curl -URI $latest -OutFile 'ssh.zip' 
 
     # creates a folder to store the OpenSSH binaries, will error if folder already exists
