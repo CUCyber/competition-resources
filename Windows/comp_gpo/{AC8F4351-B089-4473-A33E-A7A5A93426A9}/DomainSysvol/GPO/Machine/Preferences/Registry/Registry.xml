@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RegistrySettings clsid="{A3CCFC41-DFDB-43a5-8D26-0FE8B954DA51}"><Registry clsid="{9CD4B2F4-923D-47f5-A062-E897DD1DAD50}" name="RunAsPPL" status="RunAsPPL" image="10" changed="2025-01-06 02:48:55" uid="{DDFEFB8F-4773-4018-BCDE-5086AE773153}" bypassErrors="1"><Properties action="C" displayDecimal="0" default="0" hive="HKEY_LOCAL_MACHINE" key="SYSTEM\CurrentControlSet\Control\Lsa" name="RunAsPPL" type="REG_DWORD" value="00000001"/></Registry>
+	<Registry clsid="{9CD4B2F4-923D-47f5-A062-E897DD1DAD50}" name="SMB1" status="SMB1" image="10" changed="2025-01-06 02:54:08" uid="{439D7010-14FF-4634-8A83-1571211ADAE0}"><Properties action="C" displayDecimal="1" default="0" hive="HKEY_LOCAL_MACHINE" key="SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" name="SMB1" type="REG_DWORD" value="00000000"/></Registry>
+</RegistrySettings>
