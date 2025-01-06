@@ -1,14 +1,14 @@
 # Author: Isaac Fletcher (modified from Tim Koehler's original)
 # Script for randomly resetting users' passwords. Users are provided in a CSV file, and results are saved to an output file.
 
-function Generate-Password {
+function New-Random-Password {
 	param (
 		[parameter(Mandatory=$false)]
 		[ValidateRange(1, 128)]
 		[int] $Length	
 	)
 		
-	$p = -join ($acceptable_chars | get-random -Count $Length | foreach {[char]$_}) + "7!";
+	$p = -join ($acceptable_chars | get-random -Count $Length | ForEach-Object {[char]$_}) + "7!";
 	return $p
 }
 
@@ -19,10 +19,10 @@ Import-Csv $path -Header "Username"
 $users_file | ForEach-Object {
         # Read the current username from the CSV
         $user_name = $_.Username
-        echo "Resetting password for $user_name..."
+        Write-Output "Resetting password for $user_name..."
         
         # Generate a random password composed of lower and uppercase letters and special characters
-        $password = Generate-Password -Length 20
+        $password = New-Random-Password -Length 20
         # Reset password
         net user $user_name $password
 
