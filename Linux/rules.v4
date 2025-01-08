@@ -1,0 +1,34 @@
+# Filter table settings
+*filter
+
+#Default DROP
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+
+# Default ACCEPT
+:OUTPUT ACCEPT [0:0]
+
+# Protocol defaults
+:UDP - [0:0]
+:TCP - [0:0]
+#:ICMP - [0:0]
+
+# UDP Rules
+
+# Tcp Rules
+-A INPUT -p tcp --dport 22 -j ACCEPT
+
+# ICMP Rules
+
+# Basic acceptance policy
+-A INPUT -m conntrack --cstate ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+
+# Drop invalid packets
+-A INPUT -m conntrack --cstate INVALID -j DROP
+
+# Log all INPUT
+-A INPUT -j Log
+
+# Commit changes
+COMMIT
