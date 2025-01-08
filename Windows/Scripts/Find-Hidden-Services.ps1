@@ -36,7 +36,7 @@ foreach ($service in $hiddenServices) {
         Write-Host "Service: $service successfully removed."
     } elseif ($action -eq "2") {
         Write-Host "Keeping service: $service"
-    } elseif ($aciton -eq "S") {
+    } elseif ($action -eq "S") {
         Write-Host "Skipping all hidden services..."
         break
     } elseif ($action -eq "A") {
