@@ -20,7 +20,7 @@ if ($safeMode) {
 # 3. Check if local accounts exist
 function IsDomainController {
     try {
-        Get-ADUser
+        Get-ADUser -Identity Administrator
         return $true
     } catch {
         return $false
