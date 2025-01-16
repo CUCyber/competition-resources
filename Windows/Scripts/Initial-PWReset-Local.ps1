@@ -24,7 +24,7 @@ foreach ($user in $allUsers) {
     if ($safeMode) {
         Write-Output "Would reset password for: $($user.Name)"
     } else {
-        Set-LocalUser -Identity $user.Name -NewPassword (ConvertTo-SecureString -AsPlainText $defaultPassword -Force)
+        Set-LocalUser -Name $user.Name -Password (ConvertTo-SecureString -AsPlainText $defaultPassword -Force)
         Write-Output "Password reset for: $($user.Name)"
     }
     Add-Content -Path $outputFile -Value "$($user.Name)::$defaultPassword"
