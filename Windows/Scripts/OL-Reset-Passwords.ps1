@@ -1,9 +1,10 @@
 # Author: Dylan Harvey
 # One-Liners for resetting passwords.
 
-# Modern Method (local users only)
-Set-LocalUser -Name "UsernameHere" -Password (ConvertTo-SecureString "NewPasswordHere" -AsPlainText -Force)
+# Modern Method (Local)
+Set-LocalUser -Name $username -Password (ConvertTo-SecureString $password -AsPlainText -Force)
+# Modern Method (Domain)
+Set-ADAccountPassword -Identity $username -NewPassword (ConvertTo-SecureString $password -AsPlainText -Force)
 
 # Traditional Method
-net user $user_name $password
-
+net user $username $password

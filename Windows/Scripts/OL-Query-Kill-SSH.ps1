@@ -1,8 +1,6 @@
 # Author: Dylan Harvey
 # One-Liners for querying and killing SSH sessions.
 
-#Requires -RunAsAdministrator
-
 # All logged on users
 Get-CimInstance -ClassName Win32_LogonSession | Get-CimAssociatedInstance -Association Win32_LoggedOnUser
 
