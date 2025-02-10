@@ -16,28 +16,28 @@ function Get-UserDetails {
 }
 
 # List all users with details
-Write-Output "Detailed User Information:"
+Write-Host "Detailed User Information:"
 Get-LocalUser | ForEach-Object {
     $userDetails = Get-UserDetails $_
-    Write-Output "---------------------------"
-    Write-Output "Name: $($userDetails['Name'])"
-    Write-Output "Enabled: $($userDetails['Enabled'])"
-    Write-Output "Last Logon: $($userDetails['Last Logon'])"
-    Write-Output "Password Changeable: $($userDetails['Password Changeable'])"
-    Write-Output "Password Required: $($userDetails['Password Required'])"
-    Write-Output "Account Locked: $($userDetails['Account Locked'])"
+    Write-Host "---------------------------"
+    Write-Host "Name: $($userDetails['Name'])"
+    Write-Host "Enabled: $($userDetails['Enabled'])"
+    Write-Host "Last Logon: $($userDetails['Last Logon'])"
+    Write-Host "Password Changeable: $($userDetails['Password Changeable'])"
+    Write-Host "Password Required: $($userDetails['Password Required'])"
+    Write-Host "Account Locked: $($userDetails['Account Locked'])"
 }
 
 # List all groups with members
-Write-Output "`nGroups and Members:"
+Write-Host "`nGroups and Members:"
 Get-LocalGroup | ForEach-Object {
-    Write-Output "---------------------------"
-    Write-Output "Group: $($_.Name)"
+    Write-Host "---------------------------"
+    Write-Host "Group: $($_.Name)"
     $members = Get-LocalGroupMember -Group $_.Name
     if ($members) {
-        $members | ForEach-Object { Write-Output "  Member: $($_.Name)" }
+        $members | ForEach-Object { Write-Host "  Member: $($_.Name)" }
     } else {
-        Write-Output "  No members in this group."
+        Write-Host "  No members in this group."
     }
 }
 

@@ -16,4 +16,4 @@ foreach ($Key in $RunKeys) {
     Remove-Item -Path $Key -Recurse -Force # -ErrorAction SilentlyContinue
 }
 
-Write-Output "Review extra_runkeys.txt for further registry paths that should be examined."
+Write-Host "Review extra_runkeys.txt for further registry paths that should be examined."

@@ -20,9 +20,9 @@ $users = Get-LocalUser | Where-Object { $excludedUsers -notcontains $_.Name }
 foreach ($user in $users) {
     try {
         net user $($user.Name) $newPassword
-        Write-Output "Password for user $($user.Name) has been reset."
+        Write-Host "Password for user $($user.Name) has been reset."
     } catch {
-        Write-Output "Failed to reset password for user $($user.Name): $($_.Exception.Message)"
+        Write-Host "Failed to reset password for user $($user.Name): $($_.Exception.Message)"
     }
 }
 

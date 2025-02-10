@@ -24,7 +24,7 @@ if ((Get-WmiObject Win32_ComputerSystem).DomainRole -ge 4) {
     }
 
 } else {
-    Write-Output "Machine is NOT a Domain Controller"
+    Write-Host "Machine is NOT a Domain Controller"
 
     $allUsers = Get-LocalUser | Select-Object -ExpandProperty Name
     $allUsers = $allUsers | ForEach-Object {
