@@ -26,7 +26,7 @@ $hiddenServices | ForEach-Object { Write-Host $_}
 
 # Removes these services on a case by case basis
 foreach ($service in $hiddenServices) {
-    $action = Read-Host -Prompt "Action for servuce '$service' (1: Remove, 2: Keep, A: Remove ALL, S: Skip ALL)"
+    $action = Read-Host -Prompt "Action for service '$service' (1: Remove, 2: Keep, A: Remove ALL, S: Skip ALL)"
 
     if ($action -eq "1") {
         Write-Host "Removing service: $service"
@@ -53,5 +53,3 @@ foreach ($service in $hiddenServices) {
         Write-Host "Invalid Option. Skipping Service: $service"
     }
 }
-
-Pause

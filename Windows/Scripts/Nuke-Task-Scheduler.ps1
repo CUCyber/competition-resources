@@ -15,5 +15,3 @@ Stop-Service -Name Schedule -Force
 # Kill task processes (Restart-Service Should handle this; precautionary)
 Write-Host "Killing task-related processes..."
 Get-Process -Name taskhostw | Stop-Process -Force
-
-Pause
