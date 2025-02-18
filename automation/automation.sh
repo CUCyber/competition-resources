@@ -255,7 +255,7 @@ linux_handler() {
 
   # Run each script over ssh using IDENTITY_FILE
   # as the private key.
-  for script in $LINUX_SCRIPTS_DIR/*; do
+  for script in $LINUX_SCRIPTS_DIR/*.sh; do
 
     local script_name="$(basename $script)"
     local b64=$(base64 $script)
@@ -264,7 +264,7 @@ linux_handler() {
     # This enables the script to continue even if the command over ssh fails AND
     # allows us to still retrieve the exit code.
     set +e
-    echo $b64 | ssh -i $IDENTITY_FILE $LINUX_USER@$ip "base64 -d - | sh"
+    echo $b64 | ssh -i $IDENTITY_FILE $LINUX_USER@$ip "base64 -di - | sudo sh"
     exit_code=$?
     set -e
 
@@ -307,4 +307,5 @@ setup_colors
 ips=$(get_ips_from_subnet "$SUBNET")
 for ip in $ips; do
   echo $ip
+  linux_handler $ip
 done
