@@ -9,7 +9,17 @@ usage() {
   cat <<EOF
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] [-f] -p param_value arg1 [arg2...]
 
-Script description here.
+This automation script is reponsible for the following:
+  1) Enumerating a subnet.
+  2) Detecting each machine's OS in a subnet.
+  3) Handling automation-over-ssh by executing all scripts in
+     the appropriate subdirectory of this repository.
+  4) Outputting status updates for each machine and script
+     that is run.
+
+Any dependencies for these child scripts should be handled
+there and not within this automation script. This is to allow
+for significantly better modularity.
 
 Available options:
 
@@ -57,7 +67,7 @@ parse_params() {
 
   while :; do
     case "${1-}" in
-    -h | --help) usage ;;
+    -h | --help usage ;;
     -v | --verbose) set -x ;;
     --no-color) NO_COLOR=1 ;;
     -f | --flag) flag=1 ;; # example flag
@@ -84,7 +94,6 @@ parse_params "$@"
 setup_colors
 
 # Global Vars
-NEW_PASSWD="PASSWORD"
 
 # script logic here
 # Steps for each machine in subnet:
