@@ -145,6 +145,10 @@ parse_params() {
   [[ $? == 1 ]] && die "Invalid subnet \"$SUBNET\""
   set -e
 
+  # Ensure IDENTITY_FILE and IDENTITY_FILE.pub exist
+  [[ ! -f $IDENTITY_FILE ]] && die "Could not find the identity-file \"$(realpath $IDENTITY_FILE)\""
+  [[ ! -f "$IDENTITY_FILE.pub" ]] && die "Could not find the public identity-file \"$(realpath $IDENTITY_FILE).pub\""
+
   # Strip IDENTITY_FILE of ".pub" if it ends in that
   IDENTITY_FILE="${IDENTITY_FILE%.pub}"
 
@@ -234,6 +238,7 @@ linux_handler() {
 
   # Copy IDENTITY_FILE to machine with ssh-copy-id
   msg_stdout "Copying SSH Key \"$IDENTITY_FILE\" ..."
+
   set +e
   # `> /dev/null 2>&1` used to redirect all output to /dev/null
   echo "$PASSWORD" | sshpass ssh-copy-id -i "$IDENTITY_FILE" "$LINUX_USER@$ip" > /dev/null 2>&1
