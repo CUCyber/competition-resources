@@ -277,6 +277,52 @@ linux_handler() {
   done
 }
 
+# Windows machine handler
+# Args: 
+#   $1 - IP of the machine
+windows_handler() {
+  local ip=$1
+
+  msg_stdout "Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
+
+  # Copy IDENTITY_FILE to machine with custom ssh-copy-id powershell script
+  msg_stdout "Copying SSH Key \"$IDENTITY_FILE\" ..."
+
+  set +e
+  # Custom Implementation of powershell ssh-copy-id goes here
+  # Probably send base64 encoded powershell command with sshpass
+  # Only reason keeping outside of main script loop is that if this fails, there is no point in continuing
+  local exit_code=$?
+  set -e
+
+  if [[ $exit_code == 0 ]]; then
+    msg_stderr "${GREEN}OK${NOFORMAT}\n"
+  else
+    msg_stderr "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
+  fi
+
+  for script in $WINDOWS_SCRIPTS_DIR/*; do
+    local script_name="$(basename $script)"
+    local b64=$(base64 $script)
+    local command="powershell -enc $b64"
+
+    set +e
+    ssh -i $IDENTITY_FILE $WINDOWS_USER@$ip $command
+    exit_code=$?
+    set -e
+
+    msg_stdout "Executing $script_name ..."
+    if [[ $exit_code == 0 ]]; then
+      msg_stdout "${GREEN}OK${NOFORMAT}\n"
+    else
+      msg_stdout "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    fi
+
+  done
+
+}
+
 ###########################################################
 ##################       MAIN CODE       ##################
 ###########################################################
@@ -298,6 +344,15 @@ setup_colors
 
 # Steps for each machine in subnet:
 #   1) Detect OS
+ssh_banner=$(nc -w 2 "$ip" 22 | head -n 1)
+
+if [[ ${ssh_banner,,} == *"windows"* ]]; then
+    echo "Detected Windows ($ssh_banner)"
+elif [[ ssh_banner != "" ]]; then
+    echo "Detected Linux ($ssh_banner)"
+else 
+    echo "Failed to detect SSH."
+fi
 #   2) Copy ssh public key over (with ssh-copy-id) (possibly tie in with #3)
 #   3) Start running appropriate handler
 #     1) Transfer/execute all files in scripts directory 
