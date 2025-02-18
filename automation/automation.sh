@@ -3,7 +3,9 @@
 set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
 
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+###########################################################
+##################       FUNCTIONS       ##################
+###########################################################
 
 usage() {
   cat <<EOF
@@ -23,11 +25,15 @@ for significantly better modularity.
 
 Available options:
 
--h, --help          Print this help and exit
--s, --subnet        The subnet to run scripts over
--w, --windows-user  The ssh user to use for Windows
--l, --linux-user    The ssh user to use for Linux
--p, --password      The password for the ssh user(s)
+-h, --help            Print this help and exit
+-s, --subnet          The subnet to run scripts over
+-w, --windows-user    The ssh user to use for Windows
+-l, --linux-user      The ssh user to use for Linux
+-p, --password        The password for the ssh user(s)
+-i, --identity-file   The path to the private key to use.
+                      The corresponding public key is required
+                      to be in the same directory.
+--no-color            Turn off colorful printing.
 
 Dependencies:
 - sshpass
@@ -49,53 +55,193 @@ setup_colors() {
   fi
 }
 
-msg() {
-  echo >&2 -e "${1-}"
+# Sends a message to stderr. Does not automatically append a newline.
+msg_stderr() {
+  echo >&2 -ne "${1-}"
 }
 
+# Sends a message to stdout. Does not automatically append a newline.
+msg_stdout() {
+  echo >&1 -ne "${1-}"
+}
+
+# Sends a message to stderr and exit with status
 die() {
   local msg=$1
   local code=${2-1} # default exit status 1
-  msg "$msg"
+  msg_stderr "$msg\n"
   exit "$code"
 }
 
-parse_params() {
-  # default values of variables set from params
-  flag=0
-  param=''
+validate_subnet() {
+    local subnet="$1"
+    # Invalid subnet if it doesn't match the regex
+    if ! [[ "$subnet" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[1-2][0-9]|3[0-2])$ ]]; then
+      return 1
+    fi
 
+    # Further validate the IP address (0-255 per octet)
+    IFS='/' read -r ip cidr <<< "$subnet"
+    IFS='.' read -r oct1 oct2 oct3 oct4 <<< "$ip"
+
+    # Check if each octet is within the range 0-255
+    if (( oct1 >= 0 && oct1 <= 255 )) && (( oct2 >= 0 && oct2 <= 255 )) && \
+       (( oct3 >= 0 && oct3 <= 255 )) && (( oct4 >= 0 && oct4 <= 255 )); then
+
+        # Valid subnet if all octects within range
+        return 0
+
+    else
+        # Otherwise invalid subnet
+        return 1
+    fi
+}
+
+parse_params() {
   while :; do
     case "${1-}" in
-    -h | --help usage ;;
-    -v | --verbose) set -x ;;
-    --no-color) NO_COLOR=1 ;;
-    -f | --flag) flag=1 ;; # example flag
-    -p | --param) # example named parameter
-      param="${2-}"
+    -h | --help)
+      usage
+      ;;
+    -s | --subnet)
+      SUBNET="${2-}"
       shift
       ;;
-    -?*) die "Unknown option: $1" ;;
+    -w | --windows-user)
+      WINDOWS_USER="${2-}"
+      shift
+      ;;
+    -l | --linux-user)
+      LINUX_USER="${2-}"
+      shift
+      ;;
+    -p | --password)
+      PASSWORD="${2-}"
+      shift
+      ;;
+    -i | --identity-file)
+      IDENTITY_FILE="${2-}"
+      shift
+      ;;
+    --no-color)
+      NO_COLOR=1
+      ;;
+    -?*) die "Unknown option: $1\n\nPlease use -h or --help to see valid options" ;;
     *) break ;;
     esac
     shift
   done
 
-  args=("$@")
+  # Check required params and arguments
+  [[ -z "${SUBNET-}" ]] && die "Missing required parameter: subnet"
+  [[ -z "${WINDOWS_USER-}" ]] && die "Missing required parameter: windows-user"
+  [[ -z "${LINUX_USER-}" ]] && die "Missing required parameter: linux-user"
+  [[ -z "${PASSWORD-}" ]] && die "Missing required parameter: password"
+  [[ -z "${IDENTITY_FILE-}" ]] && die "Missing required parameter: identity-file"
 
-  # check required params and arguments
-  [[ -z "${param-}" ]] && die "Missing required parameter: param"
-  [[ ${#args[@]} -eq 0 ]] && die "Missing script arguments"
+  # Ensure SUBNET is a valid subnet
+  set +e
+  validate_subnet $SUBNET
+  [[ $? == 1 ]] && die "Invalid subnet \"$SUBNET\""
+  set -e
+
+  # Strip IDENTITY_FILE of ".pub" if it ends in that
+  IDENTITY_FILE="${IDENTITY_FILE%.pub}"
 
   return 0
 }
 
+# Returns an array of all ips in a subnet
+# Args:
+#   $1 - the subnet to get ips from
+get_ips_from_subnet() {
+    local subnet="$1"  # Take subnet as input
+
+    # Split the subnet into base IP and mask
+    IFS='/' read -r base_ip mask <<< "$subnet"
+
+    # Calculate the number of host addresses (2^(32 - mask) - 2 for usable addresses)
+    local num_hosts=$(( 2 ** (32 - mask) - 2 ))
+
+    # Split the base IP into an array of octets
+    IFS='.' read -r -a octets <<< "$base_ip"
+
+    # Convert the IP address into a single 32-bit integer
+    ip_int=$(( (${octets[0]} << 24) | (${octets[1]} << 16) | (${octets[2]} << 8) | ${octets[3]} ))
+
+    # Initialize an empty result string
+    local result=""
+
+    # Iterate over the range of host IPs
+    for ((i=1; i<=num_hosts; i++)); do
+        # Increment the IP address by 1
+        current_ip=$(( ip_int + i ))
+
+        # Convert the current IP back into four octets
+        octet1=$(( (current_ip >> 24) & 255 ))
+        octet2=$(( (current_ip >> 16) & 255 ))
+        octet3=$(( (current_ip >> 8) & 255 ))
+        octet4=$(( current_ip & 255 ))
+
+        # Append the full IP address to the result string
+        result+="$octet1.$octet2.$octet3.$octet4 "
+    done
+
+    # Return the result string (without newline at the end)
+    echo "$result"
+}
+
+# Linux machine handler
+# Args:
+#   $1 - The ip address of the machine
+linux_handler() {
+  local ip=$1
+
+  msg_stdout "Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
+
+  # Run each script over ssh using IDENTITY_FILE
+  # as the private key.
+  for script in $LINUX_SCRIPTS_DIR/*; do
+
+    local script_name="$(basename $script)"
+    local b64=$(base64 $script)
+
+    # Necessary to wrap both the ssh command AND exit_code retrieval with `set [+|-]e`.
+    # This enables the script to continue even if the command over ssh fails AND
+    # allows us to still retrieve the exit code.
+    set +e
+    echo $b64 | ssh -i $IDENTITY_FILE $LINUX_USER@$ip "base64 -d - | sh"
+    exit_code=$?
+    set -e
+
+    msg_stdout "Executing $script_name ..."
+    if [[ $exit_code == 0 ]]; then
+      msg_stdout "${GREEN}OK${NOFORMAT}\n"
+    else
+      msg_stdout "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    fi
+  done
+}
+
+###########################################################
+##################       MAIN CODE       ##################
+###########################################################
+
+# Global Variables
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+LINUX_SCRIPTS_DIR="$ROOT_DIR/scripts/Linux"
+WINDOWS_SCRIPTS_DIR="$ROOT_DIR/scripts/Windows"
+SUBNET=""
+WINDOWS_USER=""
+LINUX_USER=""
+PASSWORD=""
+IDENTITY_FILE=""
+NO_COLOR=""
+
+# Script setup
 parse_params "$@"
 setup_colors
 
-# Global Vars
-
-# script logic here
 # Steps for each machine in subnet:
 #   1) Detect OS
 #   2) Copy ssh public key over (with ssh-copy-id) (possibly tie in with #3)
@@ -103,7 +249,7 @@ setup_colors
 #     1) Transfer/execute all files in scripts directory 
 #     2) Capture script execution output (and display failures)
 
-msg "${RED}Read parameters:${NOFORMAT}"
-msg "- flag: ${flag}"
-msg "- param: ${param}"
-msg "- arguments: ${args[*]-}"
+ips=$(get_ips_from_subnet "$SUBNET")
+for ip in $ips; do
+  echo $ip
+done
