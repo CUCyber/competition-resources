@@ -259,12 +259,13 @@ linux_handler() {
 
     local script_name="$(basename $script)"
     local b64=$(base64 $script)
+    local command="echo \"$b64\" | base64 -di - | sudo sh"
 
     # Necessary to wrap both the ssh command AND exit_code retrieval with `set [+|-]e`.
     # This enables the script to continue even if the command over ssh fails AND
     # allows us to still retrieve the exit code.
     set +e
-    echo $b64 | ssh -i $IDENTITY_FILE $LINUX_USER@$ip "base64 -di - | sudo sh"
+    ssh -i $IDENTITY_FILE $LINUX_USER@$ip $command
     exit_code=$?
     set -e
 
@@ -344,23 +345,37 @@ setup_colors
 
 # Steps for each machine in subnet:
 #   1) Detect OS
-ssh_banner=$(nc -w 2 "$ip" 22 | head -n 1)
-
-if [[ ${ssh_banner,,} == *"windows"* ]]; then
-    echo "Detected Windows ($ssh_banner)"
-elif [[ ssh_banner != "" ]]; then
-    echo "Detected Linux ($ssh_banner)"
-else 
-    echo "Failed to detect SSH."
-fi
 #   2) Copy ssh public key over (with ssh-copy-id) (possibly tie in with #3)
 #   3) Start running appropriate handler
 #     1) Transfer/execute all files in scripts directory 
 #     2) Capture script execution output (and display failures)
 
 
-ips=$(get_ips_from_subnet "$SUBNET")
-for ip in $ips; do
-  echo $ip
-  linux_handler $ip
+IPS=$(get_ips_from_subnet "$SUBNET")
+for IP in $IPS; do
+
+  # Detected OS:
+  #   0 = Windows
+  #   1 = Linux
+  DETECTED_OS=""
+
+  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - "
+  SSH_BANNER=$(nc -w 2 "$IP" 22 | head -n 1)
+
+  # Convert SSH_BANNER to lowercase and check for substring "windows"
+  if [[ ${SSH_BANNER,,} == *"windows"* ]]; then
+    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n"
+    DETECTED_OS=0
+  elif [[ $SSH_BANNER != "" ]]; then
+    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n"
+    DETECTED_OS=1
+  else
+    msg_stderr "${RED}Failed${NOFORMAT}\n"
+    msg_stderr "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}"
+    continue
+  fi
+
+  # Start appropriate handler
+  [[ $DETECTED_OS == 0 ]] && windows_handler $IP
+  [[ $DETECTED_OS == 1 ]] && linux_handler $IP
 done
