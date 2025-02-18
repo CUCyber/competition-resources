@@ -160,6 +160,18 @@ get_ips_from_subnet() {
     # Split the subnet into base IP and mask
     IFS='/' read -r base_ip mask <<< "$subnet"
 
+    # Special cases for /31 and /32 subnets
+    if [[ "$mask" == "31" ]]; then
+        # /31 subnet has exactly 2 usable IPs
+        result="$base_ip $(get_next_ip "$base_ip")"
+        echo "$result"
+        return
+    elif [[ "$mask" == "32" ]]; then
+        # /32 subnet has exactly 1 IP address (the base IP itself)
+        echo "$base_ip"
+        return
+    fi
+
     # Calculate the number of host addresses (2^(32 - mask) - 2 for usable addresses)
     local num_hosts=$(( 2 ** (32 - mask) - 2 ))
 
@@ -191,6 +203,27 @@ get_ips_from_subnet() {
     echo "$result"
 }
 
+# Helper function to calculate the next IP address in the subnet
+get_next_ip() {
+    ip="$1"
+    IFS='.' read -r -a octets <<< "$ip"
+    next_ip=$(( (${octets[3]} + 1) % 256 ))
+
+    if (( next_ip == 0 )); then
+        octets[2]=$(( octets[2] + 1 ))
+    fi
+    if (( octets[2] == 256 )); then
+        octets[1]=$(( octets[1] + 1 ))
+        octets[2]=0
+    fi
+    if (( octets[1] == 256 )); then
+        octets[0]=$(( octets[0] + 1 ))
+        octets[1]=0
+    fi
+
+    echo "${octets[0]}.${octets[1]}.${octets[2]}.$next_ip"
+}
+
 # Linux machine handler
 # Args:
 #   $1 - The ip address of the machine
@@ -198,6 +231,22 @@ linux_handler() {
   local ip=$1
 
   msg_stdout "Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
+
+  # Copy IDENTITY_FILE to machine with ssh-copy-id
+  msg_stdout "Copying SSH Key \"$IDENTITY_FILE\" ..."
+  set +e
+  # `> /dev/null 2>&1` used to redirect all output to /dev/null
+  echo "$PASSWORD" | sshpass ssh-copy-id -i "$IDENTITY_FILE" "$LINUX_USER@$ip" > /dev/null 2>&1
+  local exit_code=$?
+  set -e
+
+  if [[ $exit_code == 0 ]]; then
+    msg_stderr "${GREEN}OK${NOFORMAT}\n"
+  else
+    msg_stderr "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
+  fi
+
 
   # Run each script over ssh using IDENTITY_FILE
   # as the private key.
@@ -248,6 +297,7 @@ setup_colors
 #   3) Start running appropriate handler
 #     1) Transfer/execute all files in scripts directory 
 #     2) Capture script execution output (and display failures)
+
 
 ips=$(get_ips_from_subnet "$SUBNET")
 for ip in $ips; do
