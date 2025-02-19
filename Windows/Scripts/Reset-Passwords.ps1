@@ -1,8 +1,8 @@
 # Reset-Passwords.ps1
 # Author: Dylan Harvey
-# Password reset script, will change passwords for non-excluded user accounts.
+# Manual password reset script, will change passwords for non-excluded user accounts.
 
-$excludedUsers = @("krbtgt", "ansible", "^seccdc")
+$excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc")
 $password = "NewSecurePassword123!"
 $securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
 $outputFile = ".\affectedUsers.csv"
