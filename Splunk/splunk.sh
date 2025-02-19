@@ -1,382 +1,137 @@
-#!/bin/bash
+#!/bin/sh
+# Thanks SEMO and TTU :)
 
-# Thanks to SEMO :)
+INDEXER="1.2.3.4"
+Splunk_Package_TGZ="splunkforwarder-9.4.0-6b4ebe426ca6-linux-amd64.tgz"
+Splunk_Download_URL="https://download.splunk.com/products/universalforwarder/releases/9.4.0/linux/splunkforwarder-9.4.0-6b4ebe426ca6-linux-amd64.tgz"
+Install_DIR="/opt/splunkforwarder"
+Receiver_Port="9997"
+USERNAME="admin"
+PASS="changeme"
 
-# Define Splunk Forwarder variables
-SPLUNK_VERSION="9.1.1"
-SPLUNK_BUILD="64e843ea36b1"
-SPLUNK_PACKAGE_TGZ="splunkforwarder-${SPLUNK_VERSION}-${SPLUNK_BUILD}-Linux-x86_64.tgz"
-SPLUNK_DOWNLOAD_URL="https://download.splunk.com/products/universalforwarder/releases/${SPLUNK_VERSION}/linux/${SPLUNK_PACKAGE_TGZ}"
-INSTALL_DIR="/opt/splunkforwarder"
-INDEXER_IP="172.20.241.20"
-RECEIVER_PORT="9997"
-
-echo "$SPLUNK_DOWNLOAD_URL"
-exit
-
-ADMIN_USERNAME="admin"
-ADMIN_PASSWORD="Changeme1!"  # Replace with a secure password
-
-HOSTNAME="$(cat /etc/hostname)"
-
-# Pretty colors :)
-RED=$'\e[0;31m'
-GREEN=$'\e[0;32m'
-YELLOW=$'\e[0;33m'
-BLUE=$'\e[0;34m'
-NC=$'\e[0m'  #No Color - resets the color back to default
-
-# Check the OS and install the necessary packageå
-if [ -f /etc/os-release ]; then
-  . /etc/os-release
-else
-  echo "${RED}Unable to detect the operating system. Aborting.${NC}"
-  exit 1
+GREEN=''
+YELLOW=''
+BLUE=''
+RED=''
+NC=''
+if [ -n "$COLOR" ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;36m'
+    NC='\033[0m'
 fi
 
-# Output detected OS
-echo "${GREEN}Detected OS ID: $ID ${NC}"
-
-# Function to create the Splunk user and group
-create_splunk_user() {
-  if ! id -u splunk &>/dev/null; then
-    echo "${BLUE}Creating splunk user and group...${NC}"
-    sudo groupadd splunk
-    sudo useradd -r -g splunk -d $INSTALL_DIR splunk
-  else
-    echo "${GREEN}Splunk user already exists.${NC}"
-  fi
-}
-
-# Function to install Splunk Forwarder
-# Blame the length on CentOS 
 install_splunk() {
-  local max_retries=3
-  local retry_count=0
-  local download_success=false
-
-  echo "${BLUE}Downloading Splunk Forwarder tarball...${NC}"
-
-  while [ $retry_count -lt $max_retries ] && [ $download_success = false ]; do
-    if [ $retry_count -eq 0 ]; then
-      # First attempt: Try with certificate verification
-      wget -O $SPLUNK_PACKAGE_TGZ $SPLUNK_DOWNLOAD_URL
-      local status=$?
-    else
-      # Subsequent attempts: Try without certificate verification
-      echo "${YELLOW}Certificate verification failed, attempting download without certificate check...${NC}"
-      wget --no-check-certificate -O $SPLUNK_PACKAGE_TGZ $SPLUNK_DOWNLOAD_URL
-      local status=$?
-    fi
-
-    if [ $status -eq 0 ]; then
-      download_success=true
-    else
-      retry_count=$((retry_count + 1))
-      echo "${RED}Download failed (attempt $retry_count/$max_retries). Retrying in 5 seconds...${NC}"
-      sleep 5
-    fi
-  done
-
-  if [ $download_success = false ]; then
-    echo "${RED}All download attempts failed. Aborting installation.${NC}"
-    return 1
-  fi
+  ( wget --no-check-certificate -O $Splunk_Package_TGZ $Splunk_Download_URL || \
+        curl -k -o $Splunk_Package_TGZ $Splunk_Download_URL || \ 
+        fetch -o $Splunk_Package_TGZ $Splunk_Download_URL )
 
   echo "${BLUE}Extracting Splunk Forwarder tarball...${NC}"
-  sudo tar -xvzf $SPLUNK_PACKAGE_TGZ -C /opt
-  rm -f $SPLUNK_PACKAGE_TGZ
+  sudo tar -xvzf $Splunk_Package_TGZ -C /opt
+  rm -f $Splunk_Package_TGZ
 
-  echo "${BLUE}Setting permissions...${NC}"
-  create_splunk_user
-  sudo chown -R splunk:splunk $INSTALL_DIR
 }
 
-
-# Function to set admin credentials
-set_admin_credentials() {
-  echo "${BLUE}Setting admin credentials...${NC}"
-  USER_SEED_FILE="$INSTALL_DIR/etc/system/local/user-seed.conf"
-  sudo bash -c "cat > $USER_SEED_FILE" <<EOL
+set_admin() {
+    echo "${BLUE}Setting Splunk admin password...${NC}"
+    User_Seed_File="$Install_DIR/etc/system/local/user-seed.conf"
+    sudo bash -c "cat > $User_Seed_File" <<EOF
 [user_info]
-USERNAME = $ADMIN_USERNAME
-PASSWORD = $ADMIN_PASSWORD
-EOL
-  sudo chown splunk:splunk $USER_SEED_FILE
-  echo "${GREEN}Admin credentials set.${NC}"
+USERNAME = $USERNAME
+PASSWORD = $PASS
+EOF
+    sudo chown root:root $User_Seed_File
+    echo "${GREEN}Splunk admin password set.${NC}"
 }
 
-# Function to set up OS-specific monitors
 setup_monitors() {
-  echo "${BLUE}Setting up monitors for $ID...${NC}"
-  MONITOR_CONFIG="$INSTALL_DIR/etc/system/local/inputs.conf"
-  
-  case $ID in
-    centos)
-      OS_MONITORS="
-[default]
-host = $HOSTNAME
+    echo "${BLUE}Setting up monitors for $ID...${NC}"
+    Monitor_Config="$Install_DIR/etc/system/local/inputs.conf"
 
+    OS_Monitors="
 [monitor:///var/log/secure]
 index = main
 sourcetype = auth
 
-[monitor:///var/log/yum.log]
-index = main
-sourcetype = package_manager
-
-[monitor:///var/log/httpd]
-index = main
-sourcetype = apache
-recursive = true
-
-[monitor:///var/log/mariadb]
-index = main
-sourcetype = mysql
-recursive = true
-
-[monitor:///var/log]
-index = main
-sourcetype = syslog
-
-[monitor:///var/log/messages]
-index = main
-sourcetype = syslog
-
 [monitor:///var/log/auth.log]
 index = main
-sourcetype = auth
-
-[monitor:///var/log/syslog]
-index = main
 sourcetype = syslog
 
-#Test log
-[monitor:///tmp/test.log]
-index = main
-sourcetype = test"
-      ;;
-      
-    ubuntu)
-      OS_MONITORS="
-[default]
-host = $HOSTNAME
-
-[monitor:///var/log/apache2/*]
-index = main
-sourcetype = apache
-recursive = true
-
-[monitor:///var/log/apt]
-index = main
-sourcetype = package_manager
-recursive = true
-
-[monitor:///var/log/messages]
+[monitor:///var/log/commands]
 index = main
 sourcetype = syslog
-
-[monitor:///var/log/auth.log]
-index = main
-sourcetype = auth
-
-[monitor:///var/log/syslog]
-index = main
-sourcetype = syslog
-
-#Test log
-[monitor:///tmp/test.log]
-index = main
-sourcetype = test"
-      ;;
-      
-    debian)
-      OS_MONITORS="
-
-[default]
-host = $HOSTNAME
-
-[monitor:///var/log/dns/*]
-index = main
-sourcetype = bind9
-recursive = true
-
-[monitor:///var/log/named]
-index = main
-sourcetype = bind9
-recursive = true
-
-[monitor:///var/log/ntp.log]
-index = main
-sourcetype = ntp
-recursive = true
-
-[monitor:///var/log]
-index = main
-sourcetype = syslog
-
-[monitor:///var/log/messages]
-index = main
-sourcetype = syslog
-
-[monitor:///var/log/auth.log]
-index = main
-sourcetype = auth
-
-[monitor:///var/log/syslog]
-index = main
-sourcetype = syslog
-
-#Test log
-[monitor:///tmp/test.log]
-index = main
-sourcetype = test"
-      ;;
-    *)
-      OS_MONITORS=""
-      ;;
-  esac
-
-  # Write the configuration. This is donat using cat and EOL to improve flexibility and customization.
-  sudo bash -c "cat > $MONITOR_CONFIG" <<EOL
-$OS_MONITORS
+"
+    sudo bash -c "cat > $Monitor_Config" <<EOL
+    
+$OS_Monitors
 EOL
+    sudo chown root:root $Monitor_Config
+    echo "${GREEN}Monitors set up for $ID.${NC}"
 
-  sudo chown splunk:splunk $MONITOR_CONFIG
-  echo "${GREEN}Monitors configured for $ID.${NC}"
 }
 
-# Function to configure the forwarder to send logs to the Splunk indexer
 configure_forwarder() {
-  echo "${BLUE}Configuring Splunk Universal Forwarder to send logs to $INDEXER_IP:$RECEIVER_PORT...${NC}"
-  sudo $INSTALL_DIR/bin/splunk add forward-server $INDEXER_IP:$RECEIVER_PORT -auth $ADMIN_USERNAME:$ADMIN_PASSWORD
-  echo "${GREEN}Forward-server configuration complete.${NC}"
+    echo "${BLUE}Configuring Splunk Forwarder to send logs to $INDEXER:$Receiver_Port...${NC}"
+    sudo $Install_DIR/bin/splunk add forward-server $INDEXER:$Receiver_Port -auth $USERNAME:$PASS
+    echo "${GREEN}Splunk Forwarder configured.${NC}"
 }
 
-# Function to restart Splunk with timeout and retry handling
 restart_splunk() {
-  local max_attempts=3
-  local attempt=1
-  local timeout=30  # 30 seconds per attempt
+    local max_atempts=3
+    local attempt=1
+    local timeout=30
 
-  echo "${BLUE}Attempting to restart Splunk Forwarder...${NC}"
+    echo "${BLUE}Restarting Splunk Forwarder...${NC}"
 
-  while [ $attempt -le $max_attempts ]; do
-    # Start Splunk in background and capture PID
-    sudo $INSTALL_DIR/bin/splunk restart &>/dev/null &
-    local splunk_pid=$!
+    while [ $attempt -le $max_atempts ]; do
+        sudo $Install_DIR/bin/splunk restart &>/dev/null &
+        local splunk_pid=$!
 
-    # Wait for timeout or process completion
-    wait $splunk_pid &>/dev/null &
-    local wait_pid=$!
-    sleep $timeout
-    kill $wait_pid &>/dev/null
+        wait $splunk_pid &>/dev/null &
+        local wait_pid=$!
+        sleep $timeout
+        kill $wait_pid &>/dev/null
 
-    # Check if Splunk is running
-    if sudo $INSTALL_DIR/bin/splunk status | grep -q "running"; then
-      echo "${GREEN}Splunk Forwarder successfully restarted.${NC}"
-      return 0
-    fi
+        if sudo $Install_DIR/bin/splunk status | grep -q "running"; then
+            echo "${GREEN}Splunk Forwarder restarted successfully.${NC}"
+            return 0
+        fi
 
-    # If we reach here, restart failed
-    echo "${YELLOW}Attempt $attempt failed. Trying again...${NC}"
-    attempt=$((attempt + 1))
-    sleep 5  # Brief pause before retry
-  done
+        echo "${RED}Attempt $attempt: Splunk Forwarder failed to restart. Retrying...${NC}"
+        attempt=$((attempt + 1))        
+        sleep 5
+    done
 
-  # If we reach here, all attempts failed
-  echo "${RED}Failed to restart Splunk after $max_attempts attempts. Please check logs for errors.${NC}"
-  return 1
+    echo "${RED}Splunk Forwarder failed to restart after $max_atempts attempts. Please check the logs for more details.${NC}"
+    return 1
 }
 
-# Perform installation
 install_splunk
 
-# Set admin credentials before starting the service
-set_admin_credentials
+set_admin
 
-# Enable Splunk service and accept license agreement
-if [ -d "$INSTALL_DIR/bin" ]; then
-  echo "${BLUE}Starting and enabling Splunk Universal Forwarder service...${NC}"
-  sudo $INSTALL_DIR/bin/splunk start --accept-license --answer-yes --no-prompt
-  sudo $INSTALL_DIR/bin/splunk enable boot-start
+if [ -d "$Install_DIR/bin" ]; then
+    echo "${BULE}Starting and enabling Splunk Forwarder...${NC}"
+    sudo $Install_DIR/bin/splunk start --accept-license --answer-yes --no-prompt
+    sudo $Install_DIR/bin/splunk enable boot-start
 
-  # Add monitors
-  setup_monitors
+    setup_monitors
 
-  # Configure forwarder to send logs to the Splunk indexer
-  configure_forwarder
+    configure_forwarder
 
-  # Restart Splunk using our new function
-  if ! restart_splunk; then
-    echo "${RED}Splunk Forwarder restart failed. Installation incomplete.${NC}"
-    exit 1
-  fi
-else
-  echo "${RED}Installation directory not found. Something went wrong.${NC}"
-  exit 1
-fi
+    if ! restart_splunk; then
+        echo "${RED}Splunk Forwareder restart failed. Installation incomplete.${NC}"
+        exit 1
+    else
+        echo "${RED}Installation directory not found. Something went wrong.${NC}"
+        exit 1
+    fi
 
-#Create test log
-echo "${BLUE}Creating test log. ${NC}"
-echo "Test log entry" > /tmp/test.log
-sudo setfacl -m u:splunk:r /tmp/test.log
-  
-# Verify installation
-sudo $INSTALL_DIR/bin/splunk version
+    sudo $Install_DIR/bin/splunk version
 
-echo "${YELLOW}Splunk Universal Forwarder v$SPLUNK_VERSION installation complete with monitors and forwarder configuration!${NC}"
+    sudo $Install_DIR/bin/splunk restart
 
-# CentOS-specific fixes
-if [[ "$ID" == "centos" || "$ID_LIKE" == *"centos"* ]]; then
-  echo "${RED}Applying CentOS-specific fixes...${NC}"
-
-  # Remove AmbientCapabilities line from the systemd service file
-  # This needs to be performed on every reboot, because CentOS. This section makes sure it's applied at install, so it can run immediately.
-  SERVICE_FILE="/etc/systemd/system/SplunkForwarder.service"
-  if [ -f "$SERVICE_FILE" ]; then
-    sudo sed -i '/AmbientCapabilities/d' "$SERVICE_FILE"
-    echo "${GREEN}Removed AmbientCapabilities line from $SERVICE_FILE ${NC}"
-  fi
-
-  # Create a systemd service to handle the fix
-  FIX_SERVICE_FILE="/etc/systemd/system/splunk-fix.service"
-
-  # Create the service file
-  cat > "$FIX_SERVICE_FILE" <<EOL
-[Unit]
-Description=Splunk Fix Service
-Before=network-online.target
-Before=multi-user.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c "/usr/bin/sed -i '/AmbientCapabilities/d' /etc/systemd/system/SplunkForwarder.service"
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
-  # Enable and start the fix service
-  echo "${BLUE}Enabling and starting the fix service${NC}"
-  sudo systemctl daemon-reload
-  sudo systemctl enable splunk-fix.service
-  sudo systemctl start splunk-fix.service
-
-  # Verify the fix service status
-  echo "${BLUE}Verifying fix service status: ${NC}"
-  sudo systemctl status splunk-fix.service
-
-  # Reload systemd daemon
-  echo "${BLUE}Reloading systemctl daemons${NC}"
-  sudo systemctl daemon-reload
-
-  # Run Splunk again
-  echo "${BLUE}Restarting the Splunk Forwarder${NC}"
-  sudo systemctl restart SplunkForwarder
-
-  echo "${YELLOW}Restart complete, forwarder installation on CentOS complete${NC}}"
-else
-  echo "${GREEN}Operating system not recognized as CentOS. Skipping CentOS fix.${NC}"
+    echo "${YELLOW}Restart complete, forwarder installation complete!${NC}"
+  exit 0
 fi
