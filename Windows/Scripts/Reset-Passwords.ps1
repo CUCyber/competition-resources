@@ -10,7 +10,7 @@ Out-File $outputFile # Clear file if exists, creates if not
 
 $role = (Get-WmiObject Win32_ComputerSystem).DomainRole
 if ($role -ge 4) {
-    Write-Host "Machine is a Domain Controller."
+    Write-Host "Machine is a Domain Controller." -ForegroundColor Cyan
 
     $allUsers = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountName
     $allUsers = $allUsers | ForEach-Object {
@@ -24,9 +24,9 @@ if ($role -ge 4) {
         Add-Content $outputFile -Value "$_,$password"
     }
 
-    Write-Host "Passwords have been reset for domain users. Changes written to: $outputFile"
+    Write-Host "Passwords have been reset for domain users. Changes written to: $outputFile" -ForegroundColor Green
 } elseif ($role -lt 4) {
-    Write-Host "Machine is NOT a Domain Controller."
+    Write-Host "Machine is NOT a Domain Controller." -ForegroundColor Cyan
 
     $allUsers = Get-LocalUser | Select-Object -ExpandProperty Name
     $allUsers = $allUsers | ForEach-Object {
@@ -40,10 +40,10 @@ if ($role -ge 4) {
         Add-Content $outputFile -Value "$_,$password"
     }
 
-    Write-Host "Passwords have been reset for local users. Changes written to: $outputFile"
+    Write-Host "Passwords have been reset for local users. Changes written to: $outputFile" -ForegroundColor Green
 } else { # I've never seen this happen but just in case
-    Write-Host "Error determining machine type."
+    Write-Host "Error determining machine type." -ForegroundColor Red
     exit 2 # Manually envoked exit
 }
 
-Write-Host "Passwords have been reset for all applicable users. Changes written to: $outputFile"
+Write-Host "Passwords have been reset for all applicable users. Changes written to: $outputFile" -ForegroundColor Green

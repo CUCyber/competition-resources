@@ -25,6 +25,6 @@ if ($role -ge 4) {
 
     Write-Host "Passwords have been reset for local users." -ForegroundColor Green
 } else { # I've never seen this happen but just in case
-    Write-Host "Error determining machine type."
+    Write-Host "Error determining machine type." -ForegroundColor Red
     exit 2 # Manually envoked exit
 }
