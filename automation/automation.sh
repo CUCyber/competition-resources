@@ -55,11 +55,6 @@ setup_colors() {
   fi
 }
 
-# Sends a message to stderr. Does not automatically append a newline.
-msg_stderr() {
-  echo >&2 -ne "${1-}"
-}
-
 # Sends a message to stdout. Does not automatically append a newline.
 msg_stdout() {
   echo >&1 -ne "${1-}"
@@ -69,7 +64,7 @@ msg_stdout() {
 die() {
   local msg=$1
   local code=${2-1} # default exit status 1
-  msg_stderr "$msg\n"
+  msg_stdout "$msg\n"
   exit "$code"
 }
 
@@ -246,9 +241,9 @@ linux_handler() {
   set -e
 
   if [[ $exit_code == 0 ]]; then
-    msg_stderr "${GREEN}OK${NOFORMAT}\n"
+    msg_stdout "${GREEN}OK${NOFORMAT}\n"
   else
-    msg_stderr "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    msg_stdout "${RED}FAILED ($exit_code)${NOFORMAT}\n"
     die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
   fi
 
@@ -297,9 +292,9 @@ windows_handler() {
   set -e
 
   if [[ $exit_code == 0 ]]; then
-    msg_stderr "${GREEN}OK${NOFORMAT}\n"
+    msg_stdout "${GREEN}OK${NOFORMAT}\n"
   else
-    msg_stderr "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    msg_stdout "${RED}FAILED ($exit_code)${NOFORMAT}\n"
     die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
   fi
 
@@ -332,6 +327,7 @@ windows_handler() {
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 LINUX_SCRIPTS_DIR="$ROOT_DIR/scripts/Linux"
 WINDOWS_SCRIPTS_DIR="$ROOT_DIR/scripts/Windows"
+OUT_DIR="$ROOT_DIR/output"
 SUBNET=""
 WINDOWS_USER=""
 LINUX_USER=""
@@ -351,31 +347,38 @@ setup_colors
 #     2) Capture script execution output (and display failures)
 
 
-IPS=$(get_ips_from_subnet "$SUBNET")
+# Prepare output directory
+set +e
+mkdir $OUT_DIR 2>/dev/null
+set -e
+
+msg_stdout "Scanning ${PURPLE}$SUBNET${NOFORMAT} for hosts that are up...\n\n"
+IPS="$(nmap -T5 -sn $SUBNET -oG /dev/stdout | grep -E "^Host:" | awk '{print $2}')"
 for IP in $IPS; do
+  rm -f $OUT_DIR/$ip 2>/dev/null
 
   # Detected OS:
   #   0 = Windows
   #   1 = Linux
   DETECTED_OS=""
 
-  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - "
-  SSH_BANNER=$(nc -w 2 "$IP" 22 | head -n 1)
+  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - " | tee -a $OUT_DIR/$ip
+  SSH_BANNER=$(nc -w 1 "$IP" 22 | head -n 1)
 
   # Convert SSH_BANNER to lowercase and check for substring "windows"
   if [[ ${SSH_BANNER,,} == *"windows"* ]]; then
-    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n"
+    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
     DETECTED_OS=0
   elif [[ $SSH_BANNER != "" ]]; then
-    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n"
+    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
     DETECTED_OS=1
   else
-    msg_stderr "${RED}Failed${NOFORMAT}\n"
-    msg_stderr "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}"
+    msg_stdout "${RED}Failed${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
+    msg_stdout "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}" | tee -a $OUT_DIR/$ip
     continue
   fi
 
   # Start appropriate handler
-  [[ $DETECTED_OS == 0 ]] && windows_handler $IP
-  [[ $DETECTED_OS == 1 ]] && linux_handler $IP
+  [[ $DETECTED_OS == 0 ]] && windows_handler $IP | tee -a $OUT_DIR/$ip
+  [[ $DETECTED_OS == 1 ]] && linux_handler $IP | tee -a $OUT_DIR/$ip 
 done
