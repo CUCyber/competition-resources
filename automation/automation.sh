@@ -23,23 +23,29 @@ Any dependencies for these child scripts should be handled
 there and not within this automation script. This is to allow
 for significantly better modularity.
 
+Additionally, this automation script is, by design, always going
+to attempt to automate something. By default, with no options
+specified, this script will attempt to automate both Windows and
+Linux machines by setting the Windows user to "Administrator" and
+the Linux user to "root".
+
 Available options:
 
--h, --help            Print this help and exit
--s, --subnet          The subnet to run scripts over
--w, --windows-user    The ssh user to use for Windows
+-h, --help            Print this help and exit.
+-s, --subnet          The subnet to run scripts over. (required)
+-w, --windows-user    The ssh user to use for Windows. (optional, default="Administrator")
 --windows-only        Check for and run scripts against only
                       Windows machines. Does nothing when
-                      used with --linux-only.
--l, --linux-user      The ssh user to use for Linux
+                      used with --linux-only. (optional)
+-l, --linux-user      The ssh user to use for Linux. (optional, default="root")
 --linux-only          Check for and run scripts against only
                       Linux machines. Does nothing when
-                      used with --windows-only.
--p, --password        The password for the ssh user(s)
+                      used with --windows-only. (optional)
+-p, --password        The password for the ssh user(s). (required)
 -i, --identity-file   The path to the private key to use.
                       The corresponding public key is required
-                      to be in the same directory.
---no-color            Turn off colorful printing.
+                      to be in the same directory. (required)
+--no-color            Turn off colorful printing. (optional)
 
 Dependencies (windows|linux|both):
 - sshpass (both)
@@ -148,12 +154,18 @@ parse_params() {
   # Check required params and arguments
   [[ -z "${SUBNET-}" ]] && die "Missing required parameter: subnet"
 
+  # Set default windows user as needed
   if [[ -n "${WINDOWS_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
-    [[ -z "${WINDOWS_USER-}" ]] && die "Missing required parameter: windows-user"
+    if [[ -z "${WINDOWS_USER-}" ]]; then
+      WINDOWS_USER="Administrator"
+    fi
   fi
 
+  # Set default linux user as needed
   if [[ -n "${LINUX_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
-    [[ -z "${LINUX_USER-}" ]] && die "Missing required parameter: linux-user"
+    if [[ -z "${WINDOWS_USER-}" ]]; then
+      LINUX_USER="root"
+    fi
   fi
 
   [[ -z "${PASSWORD-}" ]] && die "Missing required parameter: password"
