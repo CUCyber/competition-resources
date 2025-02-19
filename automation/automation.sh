@@ -355,7 +355,7 @@ EOF
     local command="powershell -enc $b64"
 
     set +e
-    ssh -i $IDENTITY_FILE $WINDOWS_USER@$ip $command
+    ssh -i $IDENTITY_FILE $WINDOWS_USER@$ip $command 2> /dev/null
     exit_code=$?
     set -e
 
