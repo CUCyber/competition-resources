@@ -380,5 +380,5 @@ for IP in $IPS; do
 
   # Start appropriate handler
   [[ $DETECTED_OS == 0 ]] && windows_handler $IP | tee -a $OUT_DIR/$ip
-  [[ $DETECTED_OS == 1 ]] && linux_handler $IP | tee -a $OUT_DIR/$ip 
+  [[ $DETECTED_OS == 1 ]] && linux_handler $IP | tee -a $OUT_DIR/$ip
 done

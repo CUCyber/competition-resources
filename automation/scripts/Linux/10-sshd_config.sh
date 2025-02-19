@@ -21,7 +21,7 @@ if ! grep -q -E "^Include \/etc\/ssh\/sshd_config.d\/\*.conf$" /etc/ssh/sshd_con
   echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
 fi
 
-mkdir /etc/ssh/backup_sshd_config.d
+mkdir /etc/ssh/backup_sshd_config.d 2>/dev/null
 cp -r /etc/ssh/sshd_config.d/* /etc/ssh/backup_sshd_config.d
 rm -rf /etc/ssh/sshd_config.d
 mkdir /etc/ssh/sshd_config.d
