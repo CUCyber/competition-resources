@@ -35,10 +35,15 @@ Available options:
                       to be in the same directory.
 --no-color            Turn off colorful printing.
 
-Dependencies:
-- sshpass
-- netcat
-- iconv
+Dependencies (windows|linux|both):
+- sshpass (both)
+- netcat (both)
+- iconv (windows)
+- nmap (both)
+
+Authors:
+- Duncan Hogg (D42H5)
+- Dylan Harvey (D-Guy2157)
 EOF
   exit
 }
