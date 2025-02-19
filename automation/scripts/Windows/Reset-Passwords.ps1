@@ -2,7 +2,7 @@
 # Author: Dylan Harvey
 # Automation version of Password reset script, will change passwords for non-excluded user accounts (LOCAL ONLY).
 
-$excludedUsers = @("krbtgt", "ansible", "^seccdc")
+$excludedUsers = @("krbtgt", "blackteam_adm", "^seccdc")
 $securePassword = "NewSecurePassword123!" | ConvertTo-SecureString -AsPlainText -Force
 
 $role = (Get-WmiObject Win32_ComputerSystem).DomainRole
