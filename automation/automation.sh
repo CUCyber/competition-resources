@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
@@ -38,6 +38,7 @@ Available options:
 Dependencies:
 - sshpass
 - netcat
+- iconv
 EOF
   exit
 }
@@ -283,6 +284,21 @@ linux_handler() {
 #   $1 - IP of the machine
 windows_handler() {
   local ip=$1
+  local pubkey_value=$(cat "$IDENTITY_FILE.pub")
+  local ssh_script=$(cat <<EOF
+\$SSH_DIR = "\$env:USERPROFILE\\.ssh"
+\$SSH_ROOT = "C:\\ProgramData\\ssh"
+\$AUTH_KEYS = "\$SSH_DIR\\authorized_keys"
+\$GROUP_KEYS = "\$SSH_ROOT\\administrators_authorized_keys"
+\$sshKey = "$pubkey_value"
+if (-Not (Test-Path \$SSH_DIR)) {
+    New-Item -ItemType Directory -Path \$SSH_DIR -Force | Out-Null
+}
+\$sshKey | Out-File -FilePath \$AUTH_KEYS -Encoding utf8
+\$sshKey | Out-File -FilePath \$GROUP_KEYS -Encoding utf8
+EOF
+  )
+  local b64ssh_script=$(echo "$ssh_script" | iconv -t UTF-16LE | base64 -w 0)
 
   msg_stdout "Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
 
@@ -290,9 +306,7 @@ windows_handler() {
   msg_stdout "Copying SSH Key \"$IDENTITY_FILE\" ..."
 
   set +e
-  # Custom Implementation of powershell ssh-copy-id goes here
-  # Probably send base64 encoded powershell command with sshpass
-  # Only reason keeping outside of main script loop is that if this fails, there is no point in continuing
+  echo "$PASSWORD" | sshpass ssh -o StrictHostKeyChecking=no "$WINDOWS_USER@$ip" "powershell -enc $b64ssh_script" > /dev/null 2>&1
   local exit_code=$?
   set -e
 
@@ -305,7 +319,8 @@ windows_handler() {
 
   for script in $WINDOWS_SCRIPTS_DIR/*; do
     local script_name="$(basename $script)"
-    local b64=$(base64 $script)
+    local script_content=$(cat $script)
+    local b64=$(echo "$script_content" | iconv -t UTF-16LE | base64 -w 0)
     local command="powershell -enc $b64"
 
     set +e
