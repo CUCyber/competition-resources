@@ -1,6 +1,6 @@
 # Auto-Reset-Passwords.ps1
 # Author: Dylan Harvey
-# Automation version of Password reset script, will change passwords for non-excluded user accounts (LOCAL ONLY, will skip domain!!!).
+# Automation Version - Will change passwords for non-excluded user accounts (LOCAL ONLY, will skip domain!!!).
 
 $excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc")
 $securePassword = "NewSecurePassword123!" | ConvertTo-SecureString -AsPlainText -Force

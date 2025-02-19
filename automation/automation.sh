@@ -154,16 +154,20 @@ parse_params() {
   # Check required params and arguments
   [[ -z "${SUBNET-}" ]] && die "Missing required parameter: subnet"
 
+  if [[ "${WINDOWS_ONLY-}" == "${LINUX_ONLY-}" ]]; then
+    BOTH_OS=1
+  fi
+
   # Set default windows user as needed
-  if [[ -n "${WINDOWS_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
+  if [[ -n "${WINDOWS_ONLY-}" || -n "${BOTH_OS-}" ]]; then
     if [[ -z "${WINDOWS_USER-}" ]]; then
       WINDOWS_USER="Administrator"
     fi
   fi
 
   # Set default linux user as needed
-  if [[ -n "${LINUX_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
-    if [[ -z "${WINDOWS_USER-}" ]]; then
+  if [[ -n "${LINUX_ONLY-}" || -n "${BOTH_OS-}" ]]; then
+    if [[ -z "${LINUX_USER-}" ]]; then
       LINUX_USER="root"
     fi
   fi
@@ -355,7 +359,7 @@ EOF
     local command="powershell -enc $b64"
 
     set +e
-    ssh -i $IDENTITY_FILE $WINDOWS_USER@$ip $command
+    ssh -i $IDENTITY_FILE $WINDOWS_USER@$ip $command 2> /dev/null
     exit_code=$?
     set -e
 
@@ -387,6 +391,7 @@ IDENTITY_FILE=""
 NO_COLOR=""
 LINUX_ONLY=""
 WINDOWS_ONLY=""
+BOTH_OS=""
 
 # Script setup
 parse_params "$@"
@@ -431,10 +436,10 @@ for IP in $IPS; do
   fi
 
   # Start appropriate handler
-  if [[ -n "${WINDOWS_ONLY-}" && $DETECTED_OS == 0 ]]; then
+  if [[ ( -n "${WINDOWS_ONLY-}" || -n "${BOTH_OS-}" ) && $DETECTED_OS == 0 ]]; then
     windows_handler $IP | tee -a $OUT_DIR/$ip
 
-  elif [[ -n "${LINUX_ONLY-}" && $DETECTED_OS == 1 ]]; then
+  elif [[ ( -n "${LINUX_ONLY-}" || -n "${BOTH_OS-}" ) && $DETECTED_OS == 1 ]]; then
     linux_handler $IP | tee -a $OUT_DIR/$ip
   fi
 done

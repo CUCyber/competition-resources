@@ -1,7 +1,7 @@
 # Info.ps1
 # Author: Dylan Harvey
 # Gathers some basic level information regarding the machine and what services its running. 
-# Useful for injects/enumeration.
+# Automation Version - Useful for injects/enumeration.
 
 # Gather System Info
 $hostname = $env:COMPUTERNAME
@@ -10,10 +10,10 @@ $domainRoleText = @("Standalone Workstation", "Member Workstation", "Standalone 
 $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
 $installedRoles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object Name, DisplayName
 $runningServices = Get-Service | Where-Object { $_.Status -eq "Running" } | Select-Object Name, DisplayName
+$openPorts = Get-NetTCPConnection | Where-Object { $_.State -eq "Listen" } | Select-Object LocalAddress, LocalPort, OwningProcess
+$sharedFolders = Get-SmbShare | Select-Object Name, Path, Description
 
-# Group Policy Info
 $passwordPolicy = Get-ADDefaultDomainPasswordPolicy
-$gpResults = gpresult /h .\gpresult.html
 
 $info = @"
 === Machine Info === 
@@ -27,9 +27,11 @@ $($installedRoles.DisplayName -join "`n")
 === Running Important Services ===
 $($runningServices.DisplayName -join "`n")
 
-=== Password Policy ===
-$($passwordPolicy | Format-List | Out-String)
+=== Listening Ports ===
+$($openPorts | Format-Table -AutoSize | Out-String)
+
+=== Shared Folders ===
+$($sharedFolders | Out-String)
 "@
 
 Write-Host $info
-Remove-Item .\gpresult.html
