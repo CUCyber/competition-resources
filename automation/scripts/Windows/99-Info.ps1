@@ -1,7 +1,7 @@
 # Info.ps1
 # Author: Dylan Harvey
 # Gathers some basic level information regarding the machine and what services its running. 
-# Useful for injects/enumeration.
+# Automation Version - Useful for injects/enumeration.
 
 # Gather System Info
 $hostname = $env:COMPUTERNAME
@@ -11,9 +11,7 @@ $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OS
 $installedRoles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object Name, DisplayName
 $runningServices = Get-Service | Where-Object { $_.Status -eq "Running" } | Select-Object Name, DisplayName
 
-# Group Policy Info
 $passwordPolicy = Get-ADDefaultDomainPasswordPolicy
-$gpResults = gpresult /h .\gpresult.html
 
 $info = @"
 === Machine Info === 
@@ -32,4 +30,3 @@ $($passwordPolicy | Format-List | Out-String)
 "@
 
 Write-Host $info
-Remove-Item .\gpresult.html
