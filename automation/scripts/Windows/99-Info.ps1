@@ -10,6 +10,8 @@ $domainRoleText = @("Standalone Workstation", "Member Workstation", "Standalone 
 $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
 $installedRoles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object Name, DisplayName
 $runningServices = Get-Service | Where-Object { $_.Status -eq "Running" } | Select-Object Name, DisplayName
+$openPorts = Get-NetTCPConnection | Where-Object { $_.State -eq "Listen" } | Select-Object LocalAddress, LocalPort, OwningProcess
+$sharedFolders = Get-SmbShare | Select-Object Name, Path, Description
 
 $passwordPolicy = Get-ADDefaultDomainPasswordPolicy
 
@@ -25,8 +27,11 @@ $($installedRoles.DisplayName -join "`n")
 === Running Important Services ===
 $($runningServices.DisplayName -join "`n")
 
-=== Password Policy ===
-$($passwordPolicy | Format-List | Out-String)
+=== Listening Ports ===
+$($openPorts | Format-Table -AutoSize | Out-String)
+
+=== Shared Folders ===
+$($sharedFolders | Out-String)
 "@
 
 Write-Host $info
