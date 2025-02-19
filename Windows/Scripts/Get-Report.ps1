@@ -1,7 +1,7 @@
-# Report.ps1
+# Get-Report.ps1
 # Author: Dylan Harvey
 # Gathers information regarding the machine and its services. Much more detailed than Info.ps1
-# Useful for threat hunting and hardening.
+# Manual Version - Useful for threat hunting and hardening, writes to output file.
 
 $outFile = ".\report.txt"
 
@@ -13,14 +13,10 @@ $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OS
 $uptime = (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes, Seconds
 $installedRoles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object Name, DisplayName
 $openPorts = Get-NetTCPConnection | Where-Object { $_.State -eq "Listen" } | Select-Object LocalAddress, LocalPort, OwningProcess
-$services = Get-Service | Where-Object { $_.Status -eq "Running" } | Select-Object Name, DisplayName
+$runningServices = Get-Service | Where-Object { $_.Status -eq "Running" } | Select-Object Name, DisplayName
 
 # Firewall
 $firewallStatus = Get-NetFirewallProfile | Select-Object Name, Enabled
-
-# Check for key services
-$importantServices = @("W3SVC", "DNS", "DHCPServer", "ADWS", "NTDS", "MSSQLSERVER", "WinRM", "Spooler")
-$runningServices = Get-Service | Where-Object { $_.Name -in $importantServices -and $_.Status -eq "Running" } | Select-Object Name, DisplayName
 
 # Network Configuration
 $networkAdapters = Get-NetIPConfiguration | Select-Object InterfaceAlias, IPv4Address, InterfaceDescription
@@ -79,9 +75,6 @@ NLA: $(if ($gpNLA -eq $true) {"Enabled"} else {"Disabled"})
 $($loggedInUsers -join "`n")
 "@
 
-
-$report | Out-File $outFile
-Write-Host "Report saved to '$outFile'"
-Remove-Item .\gpresult.html
-
 Write-Host $report
+$report | Out-File $outFile
+Write-Host "Report saved to '$outFile'" -ForegroundColor Green
