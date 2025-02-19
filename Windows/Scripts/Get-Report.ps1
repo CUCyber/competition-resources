@@ -25,16 +25,9 @@ $DNSServers = Get-DnsClientServerAddress | Select-Object -ExpandProperty ServerA
 # Shared Folders
 $sharedFolders = Get-SmbShare | Select-Object Name, Path, Description
 
-# Group Policy Information
-$passwordPolicy = Get-ADDefaultDomainPasswordPolicy
-$gpResults = gpresult /h .\gpresult.html 2>$null
-
 # Group Policy Rules
 $gpRemoteDesktop = (Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server").fDenyTSConnections -eq 0
 $gpNLA = Get-WmiObject -class Win32_TSGeneralSetting -Namespace root\cimv2\terminalservices | Select-Object UserAuthenticationRequired
-
-# Logged in users
-$loggedInUsers = quser 2>$null
 
 $report = @"
 === Machine Info === 
@@ -65,14 +58,8 @@ $($DNSServers -join "`n")
 $($sharedFolders | Out-String)
 
 === Group Policy ===
-Password Policy: 
-$($passwordPolicy | Format-List | Out-String)
-
 Remote Desktop: $(if ($gpRemoteDesktop -eq $true) {"Enabled"} else {"Disabled"})
 NLA: $(if ($gpNLA -eq $true) {"Enabled"} else {"Disabled"})
-
-=== Logged in Users ===
-$($loggedInUsers -join "`n")
 "@
 
 Write-Host $report
