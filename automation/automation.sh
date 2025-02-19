@@ -28,7 +28,13 @@ Available options:
 -h, --help            Print this help and exit
 -s, --subnet          The subnet to run scripts over
 -w, --windows-user    The ssh user to use for Windows
+--windows-only        Check for and run scripts against only
+                      Windows machines. Does nothing when
+                      used with --linux-only.
 -l, --linux-user      The ssh user to use for Linux
+--linux-only          Check for and run scripts against only
+                      Linux machines. Does nothing when
+                      used with --windows-only.
 -p, --password        The password for the ssh user(s)
 -i, --identity-file   The path to the private key to use.
                       The corresponding public key is required
@@ -112,9 +118,15 @@ parse_params() {
       WINDOWS_USER="${2-}"
       shift
       ;;
+    --windows-only)
+      WINDOWS_ONLY=1
+      ;;
     -l | --linux-user)
       LINUX_USER="${2-}"
       shift
+      ;;
+    --linux-only)
+      LINUX_ONLY=1
       ;;
     -p | --password)
       PASSWORD="${2-}"
@@ -135,8 +147,15 @@ parse_params() {
 
   # Check required params and arguments
   [[ -z "${SUBNET-}" ]] && die "Missing required parameter: subnet"
-  [[ -z "${WINDOWS_USER-}" ]] && die "Missing required parameter: windows-user"
-  [[ -z "${LINUX_USER-}" ]] && die "Missing required parameter: linux-user"
+
+  if [[ -n "${WINDOWS_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
+    [[ -z "${WINDOWS_USER-}" ]] && die "Missing required parameter: windows-user"
+  fi
+
+  if [[ -n "${LINUX_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
+    [[ -z "${LINUX_USER-}" ]] && die "Missing required parameter: linux-user"
+  fi
+
   [[ -z "${PASSWORD-}" ]] && die "Missing required parameter: password"
   [[ -z "${IDENTITY_FILE-}" ]] && die "Missing required parameter: identity-file"
 
@@ -354,6 +373,8 @@ LINUX_USER=""
 PASSWORD=""
 IDENTITY_FILE=""
 NO_COLOR=""
+LINUX_ONLY=""
+WINDOWS_ONLY=""
 
 # Script setup
 parse_params "$@"
@@ -361,11 +382,10 @@ setup_colors
 
 # Steps for each machine in subnet:
 #   1) Detect OS
-#   2) Copy ssh public key over (with ssh-copy-id) (possibly tie in with #3)
-#   3) Start running appropriate handler
-#     1) Transfer/execute all files in scripts directory 
-#     2) Capture script execution output (and display failures)
-
+#   2) Start running appropriate handler
+#     1) Copy ssh public key over (with ssh-copy-id or similar)
+#     2) Transfer/execute all files in scripts directory
+#     3) Capture script execution output (and display failures)
 
 # Prepare output directory
 set +e
@@ -399,6 +419,10 @@ for IP in $IPS; do
   fi
 
   # Start appropriate handler
-  [[ $DETECTED_OS == 0 ]] && windows_handler $IP | tee -a $OUT_DIR/$ip
-  [[ $DETECTED_OS == 1 ]] && linux_handler $IP | tee -a $OUT_DIR/$ip
+  if [[ -n "${WINDOWS_ONLY-}" && $DETECTED_OS == 0 ]]; then
+    windows_handler $IP | tee -a $OUT_DIR/$ip
+
+  elif [[ -n "${LINUX_ONLY-}" && $DETECTED_OS == 1 ]]; then
+    linux_handler $IP | tee -a $OUT_DIR/$ip
+  fi
 done
