@@ -329,8 +329,8 @@ windows_handler() {
 if (-Not (Test-Path \$SSH_DIR)) {
     New-Item -ItemType Directory -Path \$SSH_DIR -Force | Out-Null
 }
-\$sshKey | Out-File -FilePath \$AUTH_KEYS -Encoding utf8
-\$sshKey | Out-File -FilePath \$GROUP_KEYS -Encoding utf8
+Set-Content -Path \$AUTH_KEYS -Encoding utf8 -Value \$sshKey
+Set-Content -Path \$GROUP_KEYS -Encoding utf8 -Value \$sshKey
 EOF
   )
   local b64ssh_script=$(echo "$ssh_script" | iconv -t UTF-16LE | base64 -w 0)

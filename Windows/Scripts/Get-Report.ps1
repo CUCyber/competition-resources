@@ -39,7 +39,7 @@ Uptime: $($uptime.Days)d, $($uptime.Hours)h:$($uptime.Minutes)m:$($uptime.Second
 === Installed Roles & Features === 
 $($installedRoles.DisplayName -join "`n")
 
-=== Running Important Services ===
+=== Running Services ===
 $($runningServices.DisplayName -join "`n")
 
 === Firewall Status ===
