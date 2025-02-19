@@ -24,7 +24,7 @@ OS Information: $($os.Caption) ($($os.Version), $($os.OSArchitecture))
 === Installed Roles & Features === 
 $($installedRoles.DisplayName -join "`n")
 
-=== Running Important Services ===
+=== Running Services ===
 $($runningServices.DisplayName -join "`n")
 
 === Listening Ports ===
