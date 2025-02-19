@@ -23,22 +23,39 @@ Any dependencies for these child scripts should be handled
 there and not within this automation script. This is to allow
 for significantly better modularity.
 
+Additionally, this automation script is, by design, always going
+to attempt to automate something. By default, with no options
+specified, this script will attempt to automate both Windows and
+Linux machines by setting the Windows user to "Administrator" and
+the Linux user to "root".
+
 Available options:
 
--h, --help            Print this help and exit
--s, --subnet          The subnet to run scripts over
--w, --windows-user    The ssh user to use for Windows
--l, --linux-user      The ssh user to use for Linux
--p, --password        The password for the ssh user(s)
+-h, --help            Print this help and exit.
+-s, --subnet          The subnet to run scripts over. (required)
+-w, --windows-user    The ssh user to use for Windows. (optional, default="Administrator")
+--windows-only        Check for and run scripts against only
+                      Windows machines. Does nothing when
+                      used with --linux-only. (optional)
+-l, --linux-user      The ssh user to use for Linux. (optional, default="root")
+--linux-only          Check for and run scripts against only
+                      Linux machines. Does nothing when
+                      used with --windows-only. (optional)
+-p, --password        The password for the ssh user(s). (required)
 -i, --identity-file   The path to the private key to use.
                       The corresponding public key is required
-                      to be in the same directory.
---no-color            Turn off colorful printing.
+                      to be in the same directory. (required)
+--no-color            Turn off colorful printing. (optional)
 
-Dependencies:
-- sshpass
-- netcat
-- iconv
+Dependencies (windows|linux|both):
+- sshpass (both)
+- netcat (both)
+- iconv (windows)
+- nmap (both)
+
+Authors:
+- Duncan Hogg (D42H5)
+- Dylan Harvey (D-Guy2157)
 EOF
   exit
 }
@@ -56,11 +73,6 @@ setup_colors() {
   fi
 }
 
-# Sends a message to stderr. Does not automatically append a newline.
-msg_stderr() {
-  echo >&2 -ne "${1-}"
-}
-
 # Sends a message to stdout. Does not automatically append a newline.
 msg_stdout() {
   echo >&1 -ne "${1-}"
@@ -70,7 +82,7 @@ msg_stdout() {
 die() {
   local msg=$1
   local code=${2-1} # default exit status 1
-  msg_stderr "$msg\n"
+  msg_stdout "$msg\n"
   exit "$code"
 }
 
@@ -112,9 +124,15 @@ parse_params() {
       WINDOWS_USER="${2-}"
       shift
       ;;
+    --windows-only)
+      WINDOWS_ONLY=1
+      ;;
     -l | --linux-user)
       LINUX_USER="${2-}"
       shift
+      ;;
+    --linux-only)
+      LINUX_ONLY=1
       ;;
     -p | --password)
       PASSWORD="${2-}"
@@ -135,8 +153,21 @@ parse_params() {
 
   # Check required params and arguments
   [[ -z "${SUBNET-}" ]] && die "Missing required parameter: subnet"
-  [[ -z "${WINDOWS_USER-}" ]] && die "Missing required parameter: windows-user"
-  [[ -z "${LINUX_USER-}" ]] && die "Missing required parameter: linux-user"
+
+  # Set default windows user as needed
+  if [[ -n "${WINDOWS_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
+    if [[ -z "${WINDOWS_USER-}" ]]; then
+      WINDOWS_USER="Administrator"
+    fi
+  fi
+
+  # Set default linux user as needed
+  if [[ -n "${LINUX_ONLY-}" || ( -z "${WINDOWS_ONLY-}" && -z "${LINUX_ONLY-}" ) ]]; then
+    if [[ -z "${WINDOWS_USER-}" ]]; then
+      LINUX_USER="root"
+    fi
+  fi
+
   [[ -z "${PASSWORD-}" ]] && die "Missing required parameter: password"
   [[ -z "${IDENTITY_FILE-}" ]] && die "Missing required parameter: identity-file"
 
@@ -247,9 +278,9 @@ linux_handler() {
   set -e
 
   if [[ $exit_code == 0 ]]; then
-    msg_stderr "${GREEN}OK${NOFORMAT}\n"
+    msg_stdout "${GREEN}OK${NOFORMAT}\n"
   else
-    msg_stderr "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    msg_stdout "${RED}FAILED ($exit_code)${NOFORMAT}\n"
     die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
   fi
 
@@ -311,9 +342,9 @@ EOF
   set -e
 
   if [[ $exit_code == 0 ]]; then
-    msg_stderr "${GREEN}OK${NOFORMAT}\n"
+    msg_stdout "${GREEN}OK${NOFORMAT}\n"
   else
-    msg_stderr "${RED}FAILED ($exit_code)${NOFORMAT}\n"
+    msg_stdout "${RED}FAILED ($exit_code)${NOFORMAT}\n"
     die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
   fi
 
@@ -347,12 +378,15 @@ EOF
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 LINUX_SCRIPTS_DIR="$ROOT_DIR/scripts/Linux"
 WINDOWS_SCRIPTS_DIR="$ROOT_DIR/scripts/Windows"
+OUT_DIR="$ROOT_DIR/output"
 SUBNET=""
 WINDOWS_USER=""
 LINUX_USER=""
 PASSWORD=""
 IDENTITY_FILE=""
 NO_COLOR=""
+LINUX_ONLY=""
+WINDOWS_ONLY=""
 
 # Script setup
 parse_params "$@"
@@ -360,37 +394,47 @@ setup_colors
 
 # Steps for each machine in subnet:
 #   1) Detect OS
-#   2) Copy ssh public key over (with ssh-copy-id) (possibly tie in with #3)
-#   3) Start running appropriate handler
-#     1) Transfer/execute all files in scripts directory 
-#     2) Capture script execution output (and display failures)
+#   2) Start running appropriate handler
+#     1) Copy ssh public key over (with ssh-copy-id or similar)
+#     2) Transfer/execute all files in scripts directory
+#     3) Capture script execution output (and display failures)
 
+# Prepare output directory
+set +e
+mkdir $OUT_DIR 2>/dev/null
+set -e
 
-IPS=$(get_ips_from_subnet "$SUBNET")
+msg_stdout "Scanning ${PURPLE}$SUBNET${NOFORMAT} for hosts that are up...\n\n"
+IPS="$(nmap -T5 -sn $SUBNET -oG /dev/stdout | grep -E "^Host:" | awk '{print $2}')"
 for IP in $IPS; do
+  rm -f $OUT_DIR/$ip 2>/dev/null
 
   # Detected OS:
   #   0 = Windows
   #   1 = Linux
   DETECTED_OS=""
 
-  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - "
-  SSH_BANNER=$(nc -w 2 "$IP" 22 | head -n 1)
+  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - " | tee -a $OUT_DIR/$ip
+  SSH_BANNER=$(nc -w 1 "$IP" 22 | head -n 1)
 
   # Convert SSH_BANNER to lowercase and check for substring "windows"
   if [[ ${SSH_BANNER,,} == *"windows"* ]]; then
-    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n"
+    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
     DETECTED_OS=0
   elif [[ $SSH_BANNER != "" ]]; then
-    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n"
+    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
     DETECTED_OS=1
   else
-    msg_stderr "${RED}Failed${NOFORMAT}\n"
-    msg_stderr "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}"
+    msg_stdout "${RED}Failed${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
+    msg_stdout "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}" | tee -a $OUT_DIR/$ip
     continue
   fi
 
   # Start appropriate handler
-  [[ $DETECTED_OS == 0 ]] && windows_handler $IP
-  [[ $DETECTED_OS == 1 ]] && linux_handler $IP
+  if [[ -n "${WINDOWS_ONLY-}" && $DETECTED_OS == 0 ]]; then
+    windows_handler $IP | tee -a $OUT_DIR/$ip
+
+  elif [[ -n "${LINUX_ONLY-}" && $DETECTED_OS == 1 ]]; then
+    linux_handler $IP | tee -a $OUT_DIR/$ip
+  fi
 done

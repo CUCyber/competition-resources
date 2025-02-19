@@ -21,7 +21,7 @@ if ! grep -q -E "^Include \/etc\/ssh\/sshd_config.d\/\*.conf$" /etc/ssh/sshd_con
   echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
 fi
 
-mkdir /etc/ssh/backup_sshd_config.d
+mkdir /etc/ssh/backup_sshd_config.d 2>/dev/null
 cp -r /etc/ssh/sshd_config.d/* /etc/ssh/backup_sshd_config.d
 rm -rf /etc/ssh/sshd_config.d
 mkdir /etc/ssh/sshd_config.d
@@ -29,9 +29,9 @@ mkdir /etc/ssh/sshd_config.d
 echo "PubkeyAuthentication yes" > /etc/ssh/sshd_config.d/dominion_ssh.conf
 echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config.d/dominion_ssh.conf
 echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config.d/dominion_ssh.conf
-echo "PermitRootLogin no" >> /etc/ssh/sshd_config.d/dominion_ssh.conf
+echo "PermitRootLogin yes" >> /etc/ssh/sshd_config.d/dominion_ssh.conf
 
-if [ "`tail -1 /etc/ssh/sshd_config.d/dominion_ssh.conf`" = "PermitRootLogin no" ] && \
+if [ "`tail -1 /etc/ssh/sshd_config.d/dominion_ssh.conf`" = "PermitRootLogin yes" ] && \
    [ "`head -1 /etc/ssh/sshd_config.d/dominion_ssh.conf`" = "PubkeyAuthentication yes" ]; then
   echo "Successfully changed config files"
 else

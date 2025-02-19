@@ -1,4 +1,4 @@
-# Reset-Passwords.ps1
+# Auto-Reset-Passwords.ps1
 # Author: Dylan Harvey
 # Automation version of Password reset script, will change passwords for non-excluded user accounts (LOCAL ONLY, will skip domain!!!).
 
