@@ -2,7 +2,7 @@
 # Author: Dylan Harvey
 # Automation Version - Will change passwords for non-excluded user accounts (LOCAL ONLY, will skip domain!!!).
 
-$excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc")
+$excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc") # CHANGE AS NEEDED, SUPPORTS REGEX
 $securePassword = "NewSecurePassword123!" | ConvertTo-SecureString -AsPlainText -Force
 
 $role = (Get-WmiObject Win32_ComputerSystem).DomainRole
