@@ -1,12 +1,12 @@
 #!/bin/sh
 
 # Space separated list of users to ignore
-IGNORE_USER_LIST=""
+IGNORE_USER_LIST="" # CHANGE
 
 # The new password to set all users passwords to
-PASSWORD=""
+PASSWORD="" # CHANGE
 
-[ -z "${IGNORE_USER_LIST-}" ] && echo "IGNORE LIST UNSET" && exit 2
+# [ -z "${IGNORE_USER_LIST-}" ] && echo "IGNORE LIST UNSET" && exit 2
 [ -z "${PASSWORD-}" ] && echo "NO PASSWORD SET" && exit 2
 
 sys=`which chpasswd 2>/dev/null`

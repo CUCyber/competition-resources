@@ -1,10 +1,10 @@
 #!/bin/sh
 
 # The new user
-NEW_USER=""
+NEW_USER="" # CHANGE
 
-# The new password to set all users passwords to
-PASSWORD=""
+# The new password to set the new users password to
+PASSWORD="" # CHANGE
 
 [ -z "${NEW_USER-}" ] && echo "NO NEW USER SET" && exit 2
 [ -z "${PASSWORD-}" ] && echo "NO PASSWORD SET" && exit 2
