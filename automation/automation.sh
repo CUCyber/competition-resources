@@ -269,17 +269,23 @@ get_next_ip() {
 #   $1 - The ip address of the machine
 linux_handler() {
   local ip=$1
+  local remove_ssh_script=$(cat ./00-remove_ssh_keys.sh)
+  local b64remove_ssh_script=$(echo "$remove_ssh_script" | base64)
+  local remove_ssh_command="echo \"$b64remove_ssh_script\" | base64 -di - | sudo sh"
 
-  msg_stdout "Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
+  msg_stdout "> Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
 
   # Copy IDENTITY_FILE to machine with ssh-copy-id
-  msg_stdout "Copying SSH Key \"$IDENTITY_FILE\" ..."
+  msg_stdout ">> Clearing SSH keys and Copying SSH Key \"$IDENTITY_FILE\" ...\n"
 
   set +e
   # `> /dev/null 2>&1` used to redirect all output to /dev/null
-  echo "$PASSWORD" | sshpass ssh-copy-id -i "$IDENTITY_FILE" "$LINUX_USER@$ip" > /dev/null 2>&1
+  echo "$PASSWORD" | sshpass ssh -o StrictHostKeyChecking=no $LINUX_USER@$ip $remove_ssh_command 2> /dev/null
+  echo "$PASSWORD" | sshpass ssh-copy-id -i "$IDENTITY_FILE" "$LINUX_USER@$ip" 2> /dev/null
   local exit_code=$?
   set -e
+
+  msg_stdout "<< Cleared SSH keys and Copying SSH Key \"$IDENTITY_FILE\" - "
 
   if [[ $exit_code == 0 ]]; then
     msg_stdout "${GREEN}OK${NOFORMAT}\n"
@@ -300,12 +306,14 @@ linux_handler() {
     # Necessary to wrap both the ssh command AND exit_code retrieval with `set [+|-]e`.
     # This enables the script to continue even if the command over ssh fails AND
     # allows us to still retrieve the exit code.
+    msg_stdout ">> Executing $script_name ...\n"
+
     set +e
     ssh -i $IDENTITY_FILE $LINUX_USER@$ip $command
     exit_code=$?
     set -e
 
-    msg_stdout "Executing $script_name ..."
+    msg_stdout "<< Executed $script_name - "
     if [[ $exit_code == 0 ]]; then
       msg_stdout "${GREEN}OK${NOFORMAT}\n"
     else
@@ -320,6 +328,7 @@ linux_handler() {
 windows_handler() {
   local ip=$1
   local pubkey_value=$(cat "$IDENTITY_FILE.pub")
+  local remove_ssh_script=$(cat ./00-Remove-SSH-Keys.ps1)
   local ssh_script=$(cat <<EOF
 \$SSH_DIR = "\$env:USERPROFILE\\.ssh"
 \$SSH_ROOT = "C:\\ProgramData\\ssh"
@@ -334,16 +343,20 @@ Set-Content -Path \$GROUP_KEYS -Encoding utf8 -Value \$sshKey
 EOF
   )
   local b64ssh_script=$(echo "$ssh_script" | iconv -t UTF-16LE | base64 -w 0)
+  local b64remove_ssh_script=$(echo "$remove_ssh_script" | iconv -t UTF-16LE | base64 -w 0)
 
-  msg_stdout "Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
+  msg_stdout "> Automation starting for ${CYAN}$ip${NOFORMAT}:\n"
 
   # Copy IDENTITY_FILE to machine with custom ssh-copy-id powershell script
-  msg_stdout "Copying SSH Key \"$IDENTITY_FILE\" ..."
+  msg_stdout ">> Clearing SSH keys and Copying SSH Key \"$IDENTITY_FILE\" ...\n"
 
   set +e
-  echo "$PASSWORD" | sshpass ssh -o StrictHostKeyChecking=no "$WINDOWS_USER@$ip" "powershell -enc $b64ssh_script" > /dev/null 2>&1
+  echo "$PASSWORD" | sshpass ssh -o StrictHostKeyChecking=no "$WINDOWS_USER@$ip" "powershell -enc $b64remove_ssh_script" 2> /dev/null
+  echo "$PASSWORD" | sshpass ssh -o StrictHostKeyChecking=no "$WINDOWS_USER@$ip" "powershell -enc $b64ssh_script" 2> /dev/null
   local exit_code=$?
   set -e
+
+  msg_stdout "<< Cleared SSH keys and Copying SSH Key \"$IDENTITY_FILE\" - "
 
   if [[ $exit_code == 0 ]]; then
     msg_stdout "${GREEN}OK${NOFORMAT}\n"
@@ -357,13 +370,15 @@ EOF
     local script_content=$(cat $script)
     local b64=$(echo "$script_content" | iconv -t UTF-16LE | base64 -w 0)
     local command="powershell -enc $b64"
+    
+    msg_stdout ">> Executing $script_name ...\n"
 
     set +e
     ssh -i $IDENTITY_FILE $WINDOWS_USER@$ip $command 2> /dev/null
     exit_code=$?
     set -e
 
-    msg_stdout "Executing $script_name ..."
+    msg_stdout "<< Executed $script_name - "
     if [[ $exit_code == 0 ]]; then
       msg_stdout "${GREEN}OK${NOFORMAT}\n"
     else
