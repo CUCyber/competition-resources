@@ -410,7 +410,7 @@ mkdir $OUT_DIR 2>/dev/null
 set -e
 
 msg_stdout "Scanning ${PURPLE}$SUBNET${NOFORMAT} for hosts that are up...\n\n"
-IPS="$(nmap -T5 -sn $SUBNET -oG /dev/stdout | grep -E "^Host:" | awk '{print $2}')"
+IPS="$(sudo nmap -T5 -sn $SUBNET -oG /dev/stdout | grep -E "^Host:" | awk '{print $2}')"
 for IP in $IPS; do
   rm -f $OUT_DIR/$ip 2>/dev/null
 
@@ -442,4 +442,6 @@ for IP in $IPS; do
   elif [[ ( -n "${LINUX_ONLY-}" || -n "${BOTH_OS-}" ) && $DETECTED_OS == 1 ]]; then
     linux_handler $IP | tee -a $OUT_DIR/$ip
   fi
+
+  msg_stdout "\n\n"
 done
