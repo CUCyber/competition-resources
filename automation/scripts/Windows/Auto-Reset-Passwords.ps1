@@ -1,8 +1,8 @@
 # Reset-Passwords.ps1
 # Author: Dylan Harvey
-# Automation version of Password reset script, will change passwords for non-excluded user accounts (LOCAL ONLY).
+# Automation version of Password reset script, will change passwords for non-excluded user accounts (LOCAL ONLY, will skip domain!!!).
 
-$excludedUsers = @("krbtgt", "^seccdc")
+$excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc")
 $securePassword = "NewSecurePassword123!" | ConvertTo-SecureString -AsPlainText -Force
 
 $role = (Get-WmiObject Win32_ComputerSystem).DomainRole
@@ -25,6 +25,6 @@ if ($role -ge 4) {
 
     Write-Host "Passwords have been reset for local users." -ForegroundColor Green
 } else { # I've never seen this happen but just in case
-    Write-Host "Error determining machine type."
+    Write-Host "Error determining machine type." -ForegroundColor Red
     exit 2 # Manually envoked exit
 }
