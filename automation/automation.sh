@@ -365,7 +365,7 @@ EOF
     die "Failed to set SSH Key for ${ORANGE}$ip${NOFORMAT}" 2
   fi
 
-  for script in $WINDOWS_SCRIPTS_DIR/*; do
+  for script in $WINDOWS_SCRIPTS_DIR/*.ps1; do
     local script_name="$(basename $script)"
     local script_content=$(cat $script)
     local b64=$(echo "$script_content" | iconv -t UTF-16LE | base64 -w 0)
