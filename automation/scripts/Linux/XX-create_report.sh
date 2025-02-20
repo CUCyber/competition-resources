@@ -48,7 +48,7 @@ fi
 
 printf "\nMission critical services:\n"
 if [ $is_freebsd -eq 1 ]; then
-	printf "skipping on FreeBSD, look at the running services dump"
+	printf "skipping on FreeBSD, look at the running services dump\n"
 else
 	systemctl | grep -i "sshd\|http\|squid\|nginx\|mysql\|postgres\|https\|mariadb\|bta\|ftp"
 fi
