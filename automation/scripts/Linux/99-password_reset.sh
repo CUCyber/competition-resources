@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Space separated list of users to ignore
-IGNORE_USER_LIST="" # CHANGE
+IGNORE_USER_LIST="ansible gold-team seccdc_adm" # CHANGE
 
 # The new password to set all users passwords to
 PASSWORD="" # CHANGE
