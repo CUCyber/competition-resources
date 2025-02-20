@@ -427,35 +427,35 @@ set -e
 msg_stdout "Scanning ${PURPLE}$SUBNET${NOFORMAT} for hosts that are up...\n\n"
 IPS="$(sudo nmap -T5 -sn $SUBNET -oG /dev/stdout | grep -E "^Host:" | awk '{print $2}')"
 for IP in $IPS; do
-  rm -f $OUT_DIR/$ip 2>/dev/null
+  rm -f $OUT_DIR/$IP 2>/dev/null
 
   # Detected OS:
   #   0 = Windows
   #   1 = Linux
   DETECTED_OS=""
 
-  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - " | tee -a $OUT_DIR/$ip
+  msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - " | tee -a $OUT_DIR/$IP
   SSH_BANNER=$(nc -w 1 "$IP" 22 | head -n 1)
 
   # Convert SSH_BANNER to lowercase and check for substring "windows"
   if [[ ${SSH_BANNER,,} == *"windows"* ]]; then
-    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
+    msg_stdout "${GREEN}Detected Windows${NOFORMAT}\n" | tee -a $OUT_DIR/$IP
     DETECTED_OS=0
   elif [[ $SSH_BANNER != "" ]]; then
-    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
+    msg_stdout "${YELLOW}Detected Linux${NOFORMAT}\n" | tee -a $OUT_DIR/$IP
     DETECTED_OS=1
   else
-    msg_stdout "${RED}Failed${NOFORMAT}\n" | tee -a $OUT_DIR/$ip
-    msg_stdout "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}" | tee -a $OUT_DIR/$ip
+    msg_stdout "${RED}Failed${NOFORMAT}\n" | tee -a $OUT_DIR/$IP
+    msg_stdout "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}" | tee -a $OUT_DIR/$IP
     continue
   fi
 
   # Start appropriate handler
   if [[ ( -n "${WINDOWS_ONLY-}" || -n "${BOTH_OS-}" ) && $DETECTED_OS == 0 ]]; then
-    windows_handler $IP | tee -a $OUT_DIR/$ip
+    windows_handler $IP | tee -a $OUT_DIR/$IP
 
   elif [[ ( -n "${LINUX_ONLY-}" || -n "${BOTH_OS-}" ) && $DETECTED_OS == 1 ]]; then
-    linux_handler $IP | tee -a $OUT_DIR/$ip
+    linux_handler $IP | tee -a $OUT_DIR/$IP
   fi
 
   msg_stdout "\n\n"
