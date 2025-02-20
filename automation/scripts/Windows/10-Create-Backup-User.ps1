@@ -9,14 +9,14 @@ $role = (Get-WmiObject Win32_ComputerSystem).DomainRole
 if ($role -ge 4) {
     Write-Host "Machine is a Domain Controller." -ForegroundColor Cyan
 
-    New-ADUser -Name "$username" -AccountPassword $securePassword -Enabled $true -PasswordNeverExpires $true
+    New-ADUser -Name "$username" -AccountPassword $securePassword -Enabled $true -PasswordNeverExpires $true 1> $Null
     Add-ADGroupMember -Identity "Domain Admins" -Members "$username"
 
     Write-Host "New domain user '$username' has been created." -ForegroundColor Green
 } elseif ($role -lt 4) {
     Write-Host "Machine is NOT a Domain Controller." -ForegroundColor Cyan
 
-    New-LocalUser -Name "$username" -Password $securePassword -PasswordNeverExpires
+    New-LocalUser -Name "$username" -Password $securePassword -PasswordNeverExpires 1> $Null
     Add-LocalGroupMember -Group "Administrators" -Member "$username"
 
     Write-Host "New local user '$username' has been created." -ForegroundColor Green
