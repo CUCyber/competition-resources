@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-install_service.pl - Add a service for the supplied executable
+install_service_dyn.pl - Add a service for the supplied executable (dynamic argument)
 
 =head1 SYNOPSIS
 
