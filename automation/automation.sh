@@ -434,8 +434,11 @@ for IP in $IPS; do
   #   1 = Linux
   DETECTED_OS=""
 
+  # CRITICAL SET E; otherwise stops completley if no ssh
+  set +e
   msg_stdout "Detecting OS for ${CYAN}$IP${NOFORMAT} - " | tee -a $OUT_DIR/$IP
   SSH_BANNER=$(nc -w 1 "$IP" 22 | head -n 1)
+  set -e
 
   # Convert SSH_BANNER to lowercase and check for substring "windows"
   if [[ ${SSH_BANNER,,} == *"windows"* ]]; then
@@ -446,7 +449,7 @@ for IP in $IPS; do
     DETECTED_OS=1
   else
     msg_stdout "${RED}Failed${NOFORMAT}\n" | tee -a $OUT_DIR/$IP
-    msg_stdout "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!${NOFORMAT}" | tee -a $OUT_DIR/$IP
+    msg_stdout "${RED}Couldn't detect OS from SSH for $IP! Skipping scripts!\n${NOFORMAT}" | tee -a $OUT_DIR/$IP
     continue
   fi
 
