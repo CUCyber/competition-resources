@@ -65,6 +65,7 @@ for u in $(awk -F: '{print $1}' /etc/passwd); do
 	if [ -f "/var/spool/cron/crontabs/$u" ]; then
 		printf "User $u has a crontab\n"
 		cat /var/spool/cron/crontabs/$u
+		cat /var/cron/tabs/$u
 		printf "\n\n"
 	fi
 done
