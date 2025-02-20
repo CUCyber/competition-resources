@@ -11,8 +11,9 @@ $domainRole = (Get-WmiObject Win32_ComputerSystem).DomainRole
 $domainRoleText = @("Standalone Workstation", "Member Workstation", "Standalone Server", "Member Server", "Backup Domain Controller", "Primary Domain Controller")[$domainRole]
 $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
 $installedRoles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object Name, DisplayName
-$runningServices = Get-Service | Where-Object { $_.Status -eq "Running" } | Select-Object Name, DisplayName
-$openPorts = Get-NetTCPConnection | Where-Object { $_.State -eq "Listen" } | Select-Object LocalAddress, LocalPort, OwningProcess
+$runningServices = Get-WmiObject Win32_Service | Where-Object { $_.State -eq "Running" } | Select-Object Name, DisplayName, ProcessId, PathName
+$openPorts = Get-NetTCPConnection | Where-Object { $_.State -eq "Listen" } | Select-Object LocalAddress, LocalPort, OwningProcess, @{Name="ExecutablePath"; Expression={(Get-WmiObject Win32_Process -Filter "ProcessId=$($_.OwningProcess)" -ErrorAction SilentlyContinue).ExecutablePath}}
+$establishedConnections = Get-NetTCPConnection | Where-Object { $_.State -match "^Established" } | Select-Object LocalAddress, LocalPort, OwningProcess, @{Name="ExecutablePath"; Expression={(Get-WmiObject Win32_Process -Filter "ProcessId=$($_.OwningProcess)" -ErrorAction SilentlyContinue).ExecutablePath}}
 $sharedFolders = Get-SmbShare | Select-Object Name, Path, Description
 
 $info = @"
@@ -29,6 +30,9 @@ $($runningServices.DisplayName -join "`n")
 
 === Listening Ports ===
 $($openPorts | Format-Table -AutoSize | Out-String)
+
+=== Established Connections ===
+$($establishedConnections | Format-Table -AutoSize | Out-String)
 
 === Shared Folders ===
 $($sharedFolders | Out-String)
