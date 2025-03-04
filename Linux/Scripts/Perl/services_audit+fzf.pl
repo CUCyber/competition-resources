@@ -41,7 +41,7 @@ if ($ARGV[0] eq 'stop') {
 }
 
 my $command = "SYSTEMD_COLORS=true systemctl $verb --type=service $state_arg";
-open(my $fzf, '|-', 'fzf --ansi --header-lines=1 --reverse --multi --preview="systemctl show {1}"') or die "Could not open fzf: $!";
+open(my $fzf, '|-', '../Binaries/fzf --ansi --header-lines=1 --reverse --multi --preview="systemctl show {1}"') or die "Could not open fzf: $!";
 
 open(my $fh, '-|', $command) or die "Could not execute command: $!";
 while (my $line = <$fh>) {
