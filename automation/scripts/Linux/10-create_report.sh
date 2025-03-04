@@ -62,10 +62,15 @@ cat /etc/ssh/sshd_config.d/*
 # Users with crontabs
 printf "\n\nUsers with crontabs:\n"
 for u in $(awk -F: '{print $1}' /etc/passwd); do
+	if [ -f "/var/cron/tabs/$u" ]; then
+		printf "User $u has a crontab\n"
+		cat /var/cron/tabs/$u
+		printf "\n\n"
+	fi
+	
 	if [ -f "/var/spool/cron/crontabs/$u" ]; then
 		printf "User $u has a crontab\n"
 		cat /var/spool/cron/crontabs/$u
-		cat /var/cron/tabs/$u
 		printf "\n\n"
 	fi
 done
