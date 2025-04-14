@@ -19,9 +19,9 @@ $sshPaths | ForEach-Object {
 if (Test-Path $groupPath) {
     Write-Host "Found group key file at '$groupPath'" -ForegroundColor Cyan
     try {
-        Remove-Item "$groupPath" -Force
-        Write-Host "Removed group key file at '$groupPath'" -ForegroundColor Green
+        Move-Item "$groupPath" "$groupPath.old" -Force
+        Write-Host "Moved group key file at '$groupPath'" -ForegroundColor Green
     } catch {
-        Write-Host "Failed to remove group key file at '$($_.FullName)\authorized_keys'." -ForegroundColor Red
+        Write-Host "Failed to move group key file at '$($_.FullName)\authorized_keys'." -ForegroundColor Red
     }   
 }
