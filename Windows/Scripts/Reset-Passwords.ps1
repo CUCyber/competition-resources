@@ -5,7 +5,7 @@
 $excludedUsers = @("krbtgt", "ansible", "^seccdc") # CHANGE AS NEEDED, SUPPORTS REGEX
 $password = "" # CHANGE
 if (!$password) {
-    Write-Host "Password is not set! Aborting..." -ForegroundColor Red
+    Write-Host "ERROR: Password is not set! Aborting..." -ForegroundColor Red
     exit 2
 } elseif (!$excludedUsers) {
     Write-Host "WARNING: Excluded users list is not set!" -ForegroundColor Yellow

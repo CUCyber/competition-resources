@@ -2,8 +2,15 @@
 # Author: Dylan Harvey
 # Automation Version - Will change passwords for non-excluded user accounts (LOCAL ONLY, will skip domain!!!).
 
-$excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc") # CHANGE
-$securePassword = "NewSecurePassword123!" | ConvertTo-SecureString -AsPlainText -Force # CHANGE
+$excludedUsers = @("krbtgt", "ansible", "blackteam_adm", "^seccdc") # CHANGE AS NEEDED, SUPPORTS REGEX
+$password = "" # CHANGE
+if (!$password) {
+    Write-Host "ERROR: Password is not set! Aborting..." -ForegroundColor Red
+    exit 2
+} elseif (!$excludedUsers) {
+    Write-Host "WARNING: Excluded users list is not set!" -ForegroundColor Yellow
+}
+$securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
 
 $role = (Get-WmiObject Win32_ComputerSystem).DomainRole
 if ($role -ge 4) {
