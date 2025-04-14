@@ -1,23 +1,22 @@
-$path = "C:\Windows\Sysmon\"
+# Install-Sysmon.ps1
+# Author: Dylan Harvey
+# Downloads and installs Sysmon.
+# TODO: Add uninstall flag (Sysmon64.exe -u force)
 
-New-Item -ItemType Directory -Force -Path $path | Out-Null;
+[Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
+$global:ProgressPreference = "SilentlyContinue"
 
-Set-Location $path
+$installPath = "C:\Windows\Sysmon"
+New-Item -ItemType Directory -Force -Path $installPath | Out-Null;
 
-Write-Host "Retrieving Sysmon..."
+Write-Host "Downloading Sysmon..." -ForegroundColor Cyan
+Invoke-WebRequest -Uri https://download.sysinternals.com/files/Sysmon.zip -Outfile "$installPath.zip"
+Expand-Archive -Path "$installPath.zip" -DestinationPath $installPath -Force
 
-Invoke-WebRequest -Uri https://download.sysinternals.com/files/Sysmon.zip -Outfile Sysmon.zip
+Write-Host "Downloading Configuration File..." -ForegroundColor Cyan
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/SwiftOnSecurity/sysmon-config/master/sysmonconfig-export.xml -Outfile "$installPath\sysmonconfig-export.xml"
 
-Expand-Archive Sysmon.zip
+Write-Host "Installing Sysmon..." -ForegroundColor Magenta
+Start-Process -FilePath "$installPath\Sysmon64.exe" -ArgumentList "-accepteula -i `"$installPath\sysmonconfig-export.xml`"" -Wait -NoNewWindow
 
-Set-Location $path\Sysmon
-
-Write-Host "Retrieving Configuration File..."
-
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/SwiftOnSecurity/sysmon-config/master/sysmonconfig-export.xml -Outfile sysmonconfig-export.xml
-
-Write-Host "Installing Sysmon..."
-
-.\sysmon64.exe -accepteula -i sysmonconfig-export.xml
-
-Write-Host "Sysmon Installed!"
+Write-Host "Sysmon Installed!" -ForegroundColor Green
