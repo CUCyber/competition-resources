@@ -27,7 +27,7 @@ function Install-SSH {
     Get-ChildItem -Path "C:\Program Files\OpenSSH\OpenSSH-*" -Directory | Remove-Item -Force -Recurse
 
     Write-Host "Running install script..." -ForegroundColor Magenta
-    Start-Process "powershell.exe" -ArgumentList "C:\Program Files\OpenSSH\install-sshd.ps1" -Wait
+    Start-Process powershell.exe -ArgumentList "C:\Program Files\OpenSSH\install-sshd.ps1" -Wait
 
     Write-Host "Creating firewall rule..."
     New-NetFirewallRule -Name sshd -DisplayName "OpenSSH Server (sshd)" -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 | Out-Null
@@ -42,7 +42,7 @@ function Uninstall-SSH {
     Stop-Service -Name sshd
 
     Write-Host "Running uninstall script..."
-    Start-Process "powershell.exe" -ArgumentList "C:\Program Files\OpenSSH\uninstall-sshd.ps1" -Wait
+    Start-Process powershell.exe -ArgumentList "C:\Program Files\OpenSSH\uninstall-sshd.ps1" -Wait
 
     Write-Host "Removing leftover files..."
     Remove-Item "C:\Program Files\OpenSSH" -Recurse -Force
@@ -54,9 +54,9 @@ function Uninstall-SSH {
 if ($Uninstall) {
     Write-Host "Uninstalling SSH..."
     Uninstall-SSH
-    Write-Host "Uninstallation complete!" -ForegroundColor Green
+    Write-Host "SSH uninstallation complete!" -ForegroundColor Green
 } else {
     Write-Host "Installing SSH..."
     Install-SSH
-    Write-Host "Installation complete!" -ForegroundColor Green
+    Write-Host "SSH installation complete!" -ForegroundColor Green
 }
