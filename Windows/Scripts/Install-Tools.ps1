@@ -8,3 +8,12 @@ param (
 
 [Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
 $global:ProgressPreference = "SilentlyContinue"
+
+# Add functions for each tool
+
+# Add logic for each tools flag
+if ($Uninstall) {
+
+} else {
+    
+}

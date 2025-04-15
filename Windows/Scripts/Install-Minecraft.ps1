@@ -63,6 +63,7 @@ function Get-ServerJarUrl {
 }
 
 function Install-Minecraft {
+    Write-Host "Installing Minecraft server..."
     $serverInfo = Get-ServerJarUrl -Version $MinecraftVersion
     $MinecraftVersion = $serverInfo.Version
     $installDir = "$installDir\$MinecraftVersion"
@@ -86,7 +87,7 @@ function Install-Minecraft {
     Write-Host "Accepting EULA..." -ForegroundColor Magenta
     Set-Content -Path $eulaPath -Value "eula=true" -Force
 
-    Write-Host "Generating server files (first run)..."
+    Write-Host "Generating server files (first run)..." -ForegroundColor Magenta
     $logPath = "$installDir\logs\latest.log"
     $timeout = 60
     $elapsed = 0
@@ -139,7 +140,7 @@ Start-Process -FilePath "`$javaPath" -ArgumentList `$javaArgs -WorkingDirectory 
     Set-Content -Path $startPath -Value $startContent -Force
 
     Write-Host "Creating firewall rules..." -ForegroundColor Magenta
-    New-NetFirewallRule -DisplayName "Oracle" -Direction Inbound -Protocol TCP -LocalPort 25565 -Action Allow -Profile Any -Enabled True | Out-Null
+    New-NetFirewallRule -DisplayName "Minecraft" -Direction Inbound -Protocol TCP -LocalPort 25565 -Action Allow -Profile Any -Enabled True | Out-Null
     New-NetFirewallRule -DisplayName "OpenJDK Platform Binary" -Direction Inbound -Program "$javaPath" -Action Allow -Profile Any -Enabled True | Out-Null
 
     Write-Host "`nMinecraft $MinecraftVersion setup complete!" -ForegroundColor Green
@@ -151,18 +152,25 @@ Start-Process -FilePath "`$javaPath" -ArgumentList `$javaArgs -WorkingDirectory 
         Write-Host "Server not running. To start the server manually:" -ForegroundColor Yellow
         Write-Host "Run '$startPath'"
     }
+    Write-Host "Minecraft server installation complete!" -ForegroundColor Green
 }
 
 function Uninstall-Minecraft {
+    Write-Host "Uninstalling Minecraft server..."
     $process = Get-Process -Name "java" -ErrorAction SilentlyContinue
     if ($process) {
-        Write-Host "Stopping Minecraft server..." -ForegroundColor Magenta
+        Write-Host "Stopping Minecraft server..." -ForegroundColor Yellow
         Stop-Process -Id $process.id -Force
         Start-Sleep 1
     }
     
     Write-Host "Removing files..." -ForegroundColor Magenta
     Remove-Item -Path $installDir -Recurse -Force
+
+    Write-Host "Removing firewall rules..." -ForegroundColor Magenta
+    Remove-NetFirewallRule -Name "Minecraft"
+    Remove-NetFirewallRule -Name "OpenJDK Platform Binary"
+    Write-Host "Minecraft server uninstallation complete!" -ForegroundColor Green
 }
 
 # === Global Vars ===
@@ -191,11 +199,7 @@ $serverProperties = @{
 }
 
 if ($Uninstall) {
-    Write-Host "Uninstalling Minecraft server..."
     Uninstall-Minecraft
-    Write-Host "Minecraft server uninstallation complete!" -ForegroundColor Green
 } else {
-    Write-Host "Installing Minecraft server..."
     Install-Minecraft
-    Write-Host "Minecraft server installation complete!" -ForegroundColor Green
 }

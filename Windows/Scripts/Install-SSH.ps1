@@ -9,6 +9,7 @@ param (
 $global:ProgressPreference = "SilentlyContinue"
 
 function Install-SSH {
+    Write-Host "Installing SSH..."
     # Obtains the url for the latest release
     $url = "https://github.com/PowerShell/Win32-OpenSSH/releases/latest/"
     $request = [System.Net.WebRequest]::Create($url)
@@ -29,34 +30,36 @@ function Install-SSH {
     Write-Host "Running install script..." -ForegroundColor Magenta
     Start-Process powershell.exe -ArgumentList "C:\Program Files\OpenSSH\install-sshd.ps1" -Wait
 
-    Write-Host "Creating firewall rule..."
+    Write-Host "Creating firewall rule..." -ForegroundColor Magenta
     New-NetFirewallRule -Name sshd -DisplayName "OpenSSH Server (sshd)" -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 | Out-Null
     
-    Write-Host "Starting ssh server..." 
+    Write-Host "Starting ssh server..." -ForegroundColor Magenta
     Start-Service -Name sshd
     Set-Service -Name sshd -StartupType Automatic
+
+    Write-Host "SSH installation complete!" -ForegroundColor Green
 }
 
 function Uninstall-SSH {
+    Write-Host "Uninstalling SSH..."
+    
     Write-Host "Stopping SSH Server..." -ForegroundColor Yellow
     Stop-Service -Name sshd
 
-    Write-Host "Running uninstall script..."
+    Write-Host "Running uninstall script..." -ForegroundColor Magenta
     Start-Process powershell.exe -ArgumentList "C:\Program Files\OpenSSH\uninstall-sshd.ps1" -Wait
 
-    Write-Host "Removing leftover files..."
-    Remove-Item "C:\Program Files\OpenSSH" -Recurse -Force
+    Write-Host "Removing leftover files..." -ForegroundColor Magenta
+    Remove-Item -Path "C:\Program Files\OpenSSH" -Recurse -Force
 
-    Write-Host "Removing firewall rule..."
+    Write-Host "Removing firewall rule..." -ForegroundColor Magenta
     Remove-NetFirewallRule -Name sshd
+
+    Write-Host "SSH uninstallation complete!" -ForegroundColor Green
 }
 
 if ($Uninstall) {
-    Write-Host "Uninstalling SSH..."
     Uninstall-SSH
-    Write-Host "SSH uninstallation complete!" -ForegroundColor Green
 } else {
-    Write-Host "Installing SSH..."
     Install-SSH
-    Write-Host "SSH installation complete!" -ForegroundColor Green
 }

@@ -20,6 +20,7 @@ $RECEIVER_PORT = "9997"
 $HOSTNAME = $env:computername
 
 function Install-Splunk {
+    Write-Host "Installing Splunk..."
     Write-Host "Downloading Splunk Universal Forwarder MSI..." -ForegroundColor Cyan
     Invoke-WebRequest -Uri $SPLUNK_DOWNLOAD_URL -OutFile $SPLUNK_MSI
 
@@ -29,7 +30,7 @@ function Install-Splunk {
     if (Test-Path "${INSTALL_DIR}\bin\splunk.exe") {
         Write-Host "Splunk installed successfully!" -ForegroundColor Green
     } else {
-        Write-Error "Splunk installation failed."
+        Write-Host "Splunk installation failed." -ForegroundColor Red
         exit 2
     }
 
@@ -78,7 +79,7 @@ index = windows
 
     # Disable KVStore if necessary
     $serverConfPath = "${INSTALL_DIR}\etc\system\local\server.conf"
-    Write-Host "Setting custom hostname for the logs..."
+    Write-Host "Setting custom hostname for the logs..." -ForegroundColor Magenta
 @"
 [general]
 serverName = $HOSTNAME
@@ -92,10 +93,12 @@ hostnameOption = shortname
     Start-Process -FilePath "${INSTALL_DIR}\bin\splunk.exe" -ArgumentList "enable boot-start" -Wait -NoNewWindow
 
     Write-Host "Splunk Universal Forwarder installation and configuration complete!" -ForegroundColor Green
+    Write-Host "Splunk installation complete!" -ForegroundColor Green
 }
 
 function Uninstall-Splunk {
-    Write-Host "Stopping Splunk Universal Forwarder..." -ForegroundColor Magenta
+    Write-Host "Uninstalling Splunk..."
+    Write-Host "Stopping Splunk Universal Forwarder..." -ForegroundColor Yellow
     Start-Process -FilePath "${INSTALL_DIR}\bin\splunk.exe" -ArgumentList "stop" -Wait -NoNewWindow
 
     Write-Host "Setting Splunk Universal Forwarder to NOT start on boot..." -ForegroundColor Magenta
@@ -103,14 +106,12 @@ function Uninstall-Splunk {
 
     Write-Host "Uninstalling Splunk Universal Forwarder..." -ForegroundColor Magenta
     Start-Process msiexec.exe -ArgumentList "/x $SPLUNK_MSI /L*v uninstall_splunk_log.txt /quiet" -Wait -NoNewWindow
+
+    Write-Host "Splunk uninstallation complete!" -ForegroundColor Green
 }
 
 if ($Uninstall) {
-    Write-Host "Uninstalling Splunk..."
     Uninstall-Splunk
-    Write-Host "Splunk uninstallation complete!" -ForegroundColor Green
 } else {
-    Write-Host "Installing Splunk..."
     Install-Splunk
-    Write-Host "Splunk installation complete!" -ForegroundColor Green
 }
