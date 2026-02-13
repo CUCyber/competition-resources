@@ -57,6 +57,34 @@ make
 strip fzy && upx fzy
 ```
 
+### `loki/`
+- statically linked build
+- stripped and repacked with UPX
+- `loki`
+    + SHA256: `d1cc328babf5bf623f79c323770aab372e3537ad1d5469fb8014f6b4d1be50b1`
+    + MD5: `ad6aa7fa6bce20b1650742da7d3d8c46`
+- `loki-util`
+    + SHA256: `9d8ef4cc1040932cb16bf6bade1bb4caf97bf7d6b547e31d70fd1900818cd565`
+    + MD5: `368df6e21f8f9b11e6c194629217e1b0`
+
+```sh
+git clone --depth=1 https://github.com/Neo23x0/Loki-RS
+cargo build --target=x86_64-unknown-linux-musl --release
+strip loki loki-util && upx loki loki-util
+```
+
+### `oryx`
+- [existing build from pythops](https://github.com/pythops/oryx/releases/download/v0.8.0/oryx-x86_64-unknown-linux-musl)
+- stripped and repacked with UPX
+- SHA256: `512109b648b7c753604208217e4fd59a34f149e577ca766c1ee914a38d32c619`
+- MD5: `476775a8544c925b7f42265027383e8e`
+
+```sh
+curl -L https://github.com/pythops/oryx/releases/download/v0.8.0/oryx-x86_64-unknown-linux-musl -o oryx
+chmod +x oryx
+strip oryx && upx oryx
+```
+
 ### `nethogs`
 - statically linked
 - stripped and repacked with UPX
@@ -101,42 +129,6 @@ strip perl && upx perl
 
 ```sh
 git clone --depth=1 https://github.com/VirusTotal/yara-x
-cargo build --bin yr --target=x86_64-unknown-linux-musl --release --frozen
+cargo build --bin yr --target=x86_64-unknown-linux-musl --release
 strip yr && upx yr
-```
-
-### Loki-RS
-- Loki SHA256: `117d0bff2048f2a394f379ae55685b3d2da54002431d3f6ee92140ef11089227`
-- loki MD5: `50aa71fef2588c3cd2714f98f704b37a`
-- loki-util SHA256: `d52c947a79cc3ebaf75b277b15cf69e2ab5dc70b748b08674afc24d2573e367d`
-- loki-util MD5: `9539b007790b93f7da03e6099273a1a0`
-
-```sh
-# Download Instructions
-curl -LO https://github.com/Neo23x0/Loki-RS/releases/download/v2.10.0/loki-linux-x86_64-v2.10.0.tar.gz
-tar -xzvf loki-linux-*.tar.gz
-./loki-util update
-sudo ./loki
-
-# Build Instructions
-git clone https://github.com/Neo23x0/Loki-RS/archive/refs/tags/v2.10.0.tar.gz
-cargo build
-```
-
-### Oryx
-- SHA256: `f82821b1baa63a5645a38b2e3e9983f38ffa71ae5925b86e7207bb3c82bd0eaa`
-- MD5: `39dd77d249fa65c90cfb483224858323`
-
-```sh
-# Download Instructions
-curl -LO https://github.com/pythops/oryx/releases/download/v0.8.0/oryx-x86_64-unknown-linux-musl
-chmod u+x oryx-x86_64-unknown-linux-musl
-./oryx-x86_64-unknown-linux-musl
-
-# Build Instructions
-git clone https://github.com/pythops/oryx
-rustup toolchain install nightly --component rust-src
-# Install bpf-linker (https://github.com/aya-rs/bpf-linker)
-# Check bpf-linker Installation section (https://github.com/aya-rs/bpf-linker?tab=readme-ov-file#installation) .
-cargo xtask build --release
 ```
