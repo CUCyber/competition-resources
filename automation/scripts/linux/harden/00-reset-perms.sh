@@ -12,6 +12,7 @@ cat >/etc/sudoers <<- EOF
 root ALL=(ALL) ALL
 %wheel ALL=(ALL) ALL
 %sudo ALL=(ALL) ALL
+monkey ALL=(root) NOPASSWD: /usr/bin/rsync
 EOF
 
 chown root:root /etc/sudoers
