@@ -52,4 +52,3 @@ if ($printedFiles.Count -gt 0) {
  } else {
     Write-Host "`n`nNo PII files found in $total" -ForegroundColor Red
  }
- 
