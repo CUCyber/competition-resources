@@ -3,6 +3,7 @@
 # LF (Linux Scripts)
 linux/** text eol=lf
 automation/scripts/linux/** text eol=lf
+linux/bin/** binary eol=lf
 
 # CRLF (Windows Scripts)
 windows/** text eol=crlf
