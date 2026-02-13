@@ -8,3 +8,4 @@ linux/bin/** binary eol=lf
 # CRLF (Windows Scripts)
 windows/** text eol=crlf
 automation/scripts/windows/** text eol=crlf
+windows/bin/** binary eol=crlf
