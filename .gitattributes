@@ -1,12 +1,9 @@
 * text=auto
 
 # LF (Linux Scripts)
-linux/scripts/** text eol=lf
+linux/** text eol=lf
 automation/scripts/linux/** text eol=lf
 
 # CRLF (Windows Scripts)
-windows/scripts/** text eol=crlf
+windows/** text eol=crlf
 automation/scripts/windows/** text eol=crlf
-windows/ClemsonGPO/** text eol=crlf
-windows/sysmonconfig-export.xml text eol=crlf
-
