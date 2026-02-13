@@ -28,7 +28,7 @@ pip install -r requirements.txt
 ```
 ### Usage
 ```
-usage: automation.py [-h] [-d] [-l LOGFILE] [-t [TARGET]] [-c [{ssh,winrm,smb,detect}]] ip
+usage: automation.py [-h] [-d] [-l LOGFILE] [-t [TARGET]] [-c [{ssh,winrm,smb,detect}]] [-k [KEY]] ip
 
 Automation Runner
 
@@ -40,9 +40,10 @@ options:
   -d, --debug           Enable debug output
   -l, --log LOGFILE     Logfile path
   -t, --target [TARGET]
-                        Scripts target to execute (directory in scripts/) (default: first)
+                        Scripts target to execute (directory in scripts/) (default: 1)
   -c, --connmethod [{ssh,winrm,smb,detect}]
                         Connection protocol (default: detect)
+  -k, --key [KEY]       SSH Private Key or directory to use (default: keys)
 ```
 
 WIP
