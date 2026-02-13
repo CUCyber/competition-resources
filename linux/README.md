@@ -3,7 +3,7 @@ This directory contains all useful files, scripts, and tools for Linux.
 
 ## Linux Binaries (`./bin`)
 ### `abduco`
-- compiled as static
+- statically linked
 - stripped and repacked with UPX
 - SHA256: `8a9c02899294efb59f9dbc7713d09b1edb4c0c4184387b7b234856565afe0b03`
 - MD5: `7de941d997a6589ab748ae82a13915f7`
@@ -44,7 +44,7 @@ strip dropbearmulti && upx dropbearmulti
 ```
 
 ### `fzy`
-- compiled as static, modified default line number and show info toggle
+- statically linked, modified default line number and show info toggle
 - stripped and repacked with UPX
 - SHA256: `c4732062eceeb3e4fcf43fb31ea440cc5ecd1c9bba8a4a48881acfacc5a0d6aa`
 - MD5: `0ea81aeb273d4aa1d649036197563474`
@@ -57,8 +57,21 @@ make
 strip fzy && upx fzy
 ```
 
+### `nethogs`
+- statically linked
+- stripped and repacked with UPX
+- SHA256: `2dfd346945e680ead68d2e005ce7e79eb724fff1371244e1c52533c139493fa6`
+- MD5: `b740ccec6862f5cb5f8f61a26f325956`
+
+```sh
+git clone --depth=1 https://github.com/raboof/nethogs
+sed -i -e 's/^\(CFLAGS+=.*\)/\1 -static/' -e 's/^\(CXXFLAGS+=.*\)/\1 -static/' src/MakeApp.mk
+make
+strip nethogs && upx nethogs
+```
+
 ### `nnn`
-- disabled X11 integration (set `O_NOX11 := 1` in Makefile) and compiled as static
+- disabled X11 integration (set `O_NOX11 := 1` in Makefile) and statically linked
 - stripped and repacked with UPX
 - SHA256: `427e361b81386076dd422bc519059a7237b9a9eb610d79838e868b3a9b0e1622`
 - MD5: `b41e6d3cfbe3e6b6ae35974bb7807dad`
