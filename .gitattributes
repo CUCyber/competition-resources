@@ -1,11 +1,19 @@
 * text=auto
 
+*.txt text
+*.sh text eol=lf
+*.ps1 text eol=crlf
+
+*.jpg -text
+*.png -text
+*.pdf binary
+
 # LF (Linux Scripts)
 linux/** text eol=lf
 automation/scripts/linux/** text eol=lf
-linux/bin/** binary eol=lf
+linux/bin/** binary
 
 # CRLF (Windows Scripts)
 windows/** text eol=crlf
 automation/scripts/windows/** text eol=crlf
-windows/bin/** binary eol=crlf
+windows/bin/** binary
