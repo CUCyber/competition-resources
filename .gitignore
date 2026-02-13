@@ -1,0 +1,96 @@
+########################
+# OS / Filesystem
+########################
+# Linux
+*~
+~*
+.nfs*
+*.swp
+.fuse_hidden*
+.directory
+.Trash-*
+
+# macOS
+.DS_Store
+__MACOSX
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+*.msi
+*.lnk
+
+########################
+# Editors / IDEs
+########################
+# VSCode
+.vscode/
+
+# JetBrains
+.idea/
+
+# Vim
+*.swp
+*.swo
+*~
+
+########################
+# Build / Output
+########################
+# Generic build outputs
+build/
+dist/
+out/
+output/
+
+# Compiled objects / binaries
+*.o
+*.obj
+*.exe
+*.out
+*.app
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+########################
+# Temp / Cache
+########################
+# Temp files
+.tmp
+.temp
+tmp
+temp
+*.tmp
+temp.*
+
+# Logs
+*.log
+
+########################
+# Environment / Secrets
+########################
+.env
+.env.*
+!.env.example
+
+########################
+# Archives
+########################
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+########################
+# Custom
+########################
+# Project/language specific stuff here as needed
+# Python
+__pycache__/
+
+# SSH Keys
+automation/keys/
