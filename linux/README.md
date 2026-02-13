@@ -78,7 +78,7 @@ strip nethogs && upx nethogs
 
 ```sh
 git clone --depth=1 https://github.com/jarun/nnn
-sed -i 's/\(O_NOX11 := \)0/\(O_NOX11 := \)1/' Makefile
+sed -i 's/\(O_NOX11 :=\) 0/\1 1/' Makefile
 make O_STATIC=1 strip
 upx nnn
 ```
