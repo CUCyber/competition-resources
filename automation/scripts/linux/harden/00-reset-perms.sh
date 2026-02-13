@@ -1,5 +1,5 @@
 #!/bin/sh
-# 00-reset-perms.sh
+# 99-reset-perms.sh
 # Author: Adam Colaianni
 # Description: Automated script to reset sudoers perms.
 # Dependencies: cp, groupdel, groupadd, cat, chown, chmod, usermod

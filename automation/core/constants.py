@@ -2,8 +2,8 @@
 
 PROTOCOLS = {
     "winrm": 5985,
-    "winrms": 5986,
     "ssh": 22,
+    "winrms": 5986,
     "smb": 445
 }
 

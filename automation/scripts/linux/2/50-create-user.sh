@@ -1,12 +1,12 @@
 #!/bin/sh
 # 50-create-user.sh
-# Author: Dylan Harvey / Adam Colaianni
+# Author: Dylan Harvey
 # Description: Automated user creation script, will create a sudo user.
-# Dependencies: useradd, usermod, chpasswd, grep, cut, chmod, chown
+# Dependencies: awk, useradd, usermod, chpasswd, chmod, chown
 
 USERNAME=""  # CHANGE AS NEEDED
 PASSWORD=""  # CHANGE
-SSH_KEY=""  # CHANGE
+SSH_KEY=""  # CHANGE, OPTIONAL
 
 if [ -z "$USERNAME" ]; then
     echo "ERROR: Username is not set! Aborting..." >&2
@@ -23,48 +23,35 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if grep -q "^$USERNAME:" /etc/passwd; then
-    echo "[!] User '$USERNAME' already exists. Skipping." >&2
-    exit 1
+if awk -F: -v u="$USERNAME" '$1 == u {found=1} END {exit !found}' /etc/passwd; then
+    echo "[!] WARNING: User '$USERNAME' already exists. Skipping creation."
 else
     useradd -m -s /bin/bash "$USERNAME" || useradd -m "$USERNAME"
-    echo "[+] User '$USERNAME' created."
 fi
 
 if echo "$USERNAME:$PASSWORD" | chpasswd -c SHA512 2>/dev/null; then
-        METHOD="SHA512"
-    elif echo "$USERNAME:$PASSWORD" | chpasswd 2>/dev/null; then
-        METHOD="Standard"
-    elif echo "$PASSWORD" | passwd --stdin "$USERNAME" 2>/dev/null; then
-        METHOD="Stdin"
-    else
-        METHOD="FAILURE"
+    METHOD="SHA512"
+elif echo "$USERNAME:$PASSWORD" | chpasswd 2>/dev/null; then
+    METHOD="Standard"
+else
+    echo "$PASSWORD" | passwd --stdin "$USERNAME" 2>/dev/null
+    METHOD="Stdin"
 fi
 echo "[+] Password for '$USERNAME' updated ($METHOD)."
 
-for GROUP in sudo wheel; do
-    if grep -q "^$GROUP:" /etc/group; then
-        if ! grep "^$GROUP:" /etc/group | grep -q "$USERNAME"; then
-            usermod -aG "$GROUP" "$USERNAME" 2>/dev/null || addgroup "$USERNAME" "$GROUP"
-            echo "[+] Added '$USERNAME' to group: $GROUP"
-        fi
+for GROUP in sudo wheel admin; do
+    if awk -F: -v g="$GROUP" '$1 == g {found=1} END {exit !found}' /etc/group; then
+        usermod -aG "$GROUP" "$USERNAME" 2>/dev/null || addgroup "$USERNAME" "$GROUP" 2>/dev/null
+        echo "[+] Added '$USERNAME' to $GROUP"
     fi
 done
 
-USER_HOME=$(getent passwd "$USERNAME" | cut -d: -f6)
-
-if [ -z "$USER_HOME" ]; then
-    USER_HOME="/home/$USERNAME"
+USER_HOME=$(awk -F: -v u="$USERNAME" '$1 == u {print $6}' /etc/passwd)
+if [ -n "$SSH_KEY" ] && [ -d "$USER_HOME" ]; then
+    mkdir -p "$USER_HOME/.ssh"
+    echo "$SSH_KEY" > "$USER_HOME/.ssh/authorized_keys"
+    chmod 700 "$USER_HOME/.ssh"
+    chmod 600 "$USER_HOME/.ssh/authorized_keys"
+    chown -R "$USERNAME:$USERNAME" "$USER_HOME/.ssh"
+    echo "[+] Added SSH key at $USER_HOME/.ssh/authorized_keys"
 fi
-
-SSH_DIR="$USER_HOME/.ssh"
-AUTH_KEYS="$SSH_DIR/authorized_keys"
-
-mkdir -p "$SSH_DIR"
-chmod 700 "$SSH_DIR"
-
-echo "$SSH_KEY" > "$AUTH_KEYS"
-chmod 600 "$AUTH_KEYS"
-chown -R "$USERNAME:$USERNAME" "$SSH_DIR"
-
-echo "Backup user created."

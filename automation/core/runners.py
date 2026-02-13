@@ -90,28 +90,32 @@ def run_ssh(args, username: str, password: str) -> None:
             for filename in sorted(os.listdir(local_target_dir)):
                 local_path = os.path.join(local_target_dir, filename)
 
+                if filename.startswith("."):
+                    continue
+
                 with open(local_path, 'r') as f:
                     script_content = f.read()
 
-                if is_windows:
-                    if filename.endswith(".ps1"):
-                        logging.info("Executing %s script via powershell...", filename)
-                        encoded_script = base64.b64encode(script_content.encode('utf-16-le')).decode('ascii')
-                        cmd = f"powershell.exe -ExecutionPolicy Bypass -EncodedCommand {encoded_script}"
-                        exec_res = c.run(cmd, hide=True, warn=True)
-                else:
-                    if filename.endswith(".sh"):
-                        logging.info("Executing %s via sh...", filename)
-                        escaped_content = script_content.replace("'", "'\\''")
-                        cmd = f"printf '%s\\n' '{password}' | sudo -S sh -c '{escaped_content}'"
-                        exec_res = c.run(cmd, hide=True, warn=True)
+                exec_res = None
 
-                if exec_res.ok:
-                    logging.success("Script %s Output:\n%s", filename, exec_res.stdout.strip())
-                else:
-                    logging.error("Script %s failed (Code %s)", filename, exec_res.exited)
-                    if exec_res.stderr:
-                        logging.error("STDERR: %s", exec_res.stderr.strip())
+                if is_windows and filename.endswith(".ps1"):
+                    logging.info("Executing %s script via powershell...", filename)
+                    encoded_script = base64.b64encode(script_content.encode('utf-16-le')).decode('ascii')
+                    cmd = f"powershell.exe -ExecutionPolicy Bypass -EncodedCommand {encoded_script}"
+                    exec_res = c.run(cmd, hide=True, warn=True)
+                elif is_linux and filename.endswith(".sh"):
+                    logging.info("Executing %s via sh...", filename)
+                    escaped_content = script_content.replace("'", "'\\''")
+                    cmd = f"printf '%s\\n' '{password}' | sudo -S sh -c '{escaped_content}'"
+                    exec_res = c.run(cmd, hide=True, warn=True)
+
+                if exec_res is not None:
+                    if exec_res.ok:
+                        logging.success("Script %s Output:\n%s", filename, exec_res.stdout.strip())
+                    else:
+                        logging.error("Script %s failed (Code %s)", filename, exec_res.exited)
+                        if exec_res.stderr:
+                            logging.error("STDERR: %s", exec_res.stderr.strip())
 
     except Exception as e:
         logging.error("SSH Execution failed: %s", e)
@@ -173,7 +177,7 @@ def run_winrm(args, username: str, password: str) -> None:
             return
 
         for filename in sorted(os.listdir(local_target_dir)):
-            if filename.endswith(".ps1"):
+            if not filename.startswith(".") and filename.endswith(".ps1"):
                 local_path = os.path.join(local_target_dir, filename)
                 logging.info("Executing %s via WinRM...", filename)
 
@@ -211,7 +215,7 @@ def run_smb(args, username: str, password: str) -> None:
         remote_share = "ADMIN$"
 
         for filename in sorted(os.listdir(local_target_dir)):
-            if filename.endswith(".ps1"):
+            if not filename.startswith(".") and filename.endswith(".ps1"):
                 local_path = os.path.join(local_target_dir, filename)
                 remote_name = f"{filename}"
 
