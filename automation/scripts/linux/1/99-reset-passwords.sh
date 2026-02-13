@@ -1,8 +1,8 @@
 #!/bin/sh
 # 99-reset-passwords.sh
 # Author: Dylan Harvey
-# Automated password reset script, will change passwords for non-excluded user accounts.
-# Dependencies: chpasswd, passwd, date*
+# Description: Automated password reset script, will change passwords for non-excluded user accounts.
+# Dependencies: id, cp, sed, awk, chpasswd, passwd, date*
 
 EXCLUDED_USERS="^blackteam ^seccdc"  # CHANGE AS NEEDED, SUPPORTS REGEX
 PASSWORD=""  # CHANGE
