@@ -1,11 +1,15 @@
-# 10-Create-User.ps1
+# 50-Create-User.ps1
 # Author: Dylan Harvey
 # Automated user creation script, will create and activate an admin user.
 
-$username = "dguy"  # CHANGE AS NEEDED
+$username = ""  # CHANGE AS NEEDED
 $password = ""  # CHANGE
+if (!$username) {
+    Write-Host "ERROR: Username is not set! Aborting..."
+    exit 2
+}
 if (!$password) {
-    Write-Host "ERROR: Password is not set! Aborting..." -ForegroundColor Red
+    Write-Host "ERROR: Password is not set! Aborting..."
     exit 2
 }
 $securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
