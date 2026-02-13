@@ -1,0 +1,33 @@
+# MALICIOUS KEYWORDS
+#
+# Subset of keywords from THOR APT Scanner
+
+# Password Dumper
+WCESERVICE
+WCE_SERVICE
+WCE SERVICE
+
+# Mimikatz
+eo.oe.kiwi
+<3 eo.oe
+mimilib
+privilege::debug
+sekurlsa::LogonPasswords
+sekurlsa::logonpasswords
+
+# Metasploit PsExec
+%COMSPEC% /C start %COMSPEC% /C \\WINDOWS\\Temp
+
+# Javascript Windows Scripting Host - Suspicious - see http://goo.gl/6HRCbk
+wscript.exe /b /nologo /E:javascript
+
+# Java Deserialisation Exploit Tools
+ysoserial-0.
+
+# Powersploit
+Powersploit
+
+# Powershell Mimikatz https://adsecurity.org/?p=2604
+Invoke-Mimikatz
+
+# Don't remove this line
