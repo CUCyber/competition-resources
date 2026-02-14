@@ -12,7 +12,10 @@ if (-not (Test-Path $BackupDir)) {
     New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
 }
 
-$TargetFiles = @("C:\ProgramData\ssh\administrators_authorized_keys")
+$TargetFiles = @()
+
+$AdminPath = "C:\ProgramData\ssh\administrators_authorized_keys"
+if (Test-Path $AdminPath) { $TargetFiles += $AdminPath }
 
 $UserProfiles = Get-ChildItem "C:\Users" -Directory
 
