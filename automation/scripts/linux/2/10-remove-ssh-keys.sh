@@ -2,7 +2,7 @@
 # 10-remove-ssh-keys.sh
 # Author: Dylan Harvey
 # Description: Automated script to backup and remove SSH keys. Checks sshd_config and defaults.
-# Dependencies: awk, sed, tar, find, date*
+# Dependencies: id, awk, sed, mkdir, rm, tar, date
 
 LOG_FILE="/var/log/ssh_key_purge.log"
 BACKUP_DIR="/root/ssh_backups"
@@ -33,7 +33,7 @@ for f in $SEARCH_TARGETS; do
 done
 
 if [ -n "$FINAL_LIST" ]; then
-    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
     BACKUP_FILE="$BACKUP_DIR/keys_backup_$TIMESTAMP.tgz"
     tar czf "$BACKUP_FILE" $FINAL_LIST 2>/dev/null
     for key_file in $FINAL_LIST; do
@@ -41,4 +41,6 @@ if [ -n "$FINAL_LIST" ]; then
         echo "$(date): Removed $key_file" >> "$LOG_FILE"
     done
     echo "SUCCESS: Keys backed up and removed."
+else
+    echo "No keys found."
 fi

@@ -117,6 +117,9 @@ def run_ssh(args, username: str, password: str) -> None:
                         if exec_res.stderr:
                             logging.error("STDERR: %s", exec_res.stderr.strip())
 
+                    logging.debug("Result stdout: %s", exec_res.stdout.strip())
+                    logging.debug("Result stderr: %s", exec_res.stderr.strip())
+
     except Exception as e:
         logging.error("SSH Execution failed: %s", e)
         raise e
@@ -191,6 +194,9 @@ def run_winrm(args, username: str, password: str) -> None:
                 else:
                     error_output = result.std_err.decode().strip()
                     logging.error("Script %s Output:\n%s", filename, clean_clixml(error_output))
+                
+                logging.debug("Result stdout: %s", result.std_out.decode().strip())
+                logging.debug("Result stderr: %s", result.std_err.decode().strip())
 
     except Exception as e:
         logging.error("WinRM Execution failed: %s", e)

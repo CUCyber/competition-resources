@@ -41,7 +41,7 @@ for user in $TARGET_USERS; do
     elif echo "$user:$PASSWORD" | chpasswd 2>/dev/null; then
         STATUS="SUCCESS (Standard)"
     elif echo "$PASSWORD" | passwd --stdin "$user" 2>/dev/null; then
-        STATUS="SUCCESS (Stdin)"
+        STATUS="SUCCESS? (Stdin)"
     else
         STATUS="FAILURE"
     fi

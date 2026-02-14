@@ -27,15 +27,17 @@ if awk -F: -v u="$USERNAME" '$1 == u {found=1} END {exit !found}' /etc/passwd; t
     echo "[!] WARNING: User '$USERNAME' already exists. Skipping creation."
 else
     useradd -m -s /bin/bash "$USERNAME" || useradd -m "$USERNAME"
+    echo "[+] Created user $USERNAME"
 fi
 
 if echo "$USERNAME:$PASSWORD" | chpasswd -c SHA512 2>/dev/null; then
     METHOD="SHA512"
 elif echo "$USERNAME:$PASSWORD" | chpasswd 2>/dev/null; then
     METHOD="Standard"
-else
-    echo "$PASSWORD" | passwd --stdin "$USERNAME" 2>/dev/null
+elif echo "$PASSWORD" | passwd --stdin "$USERNAME" 2>/dev/null; then
     METHOD="Stdin"
+else
+    METHOD="FAILURE"
 fi
 echo "[+] Password for '$USERNAME' updated ($METHOD)."
 
