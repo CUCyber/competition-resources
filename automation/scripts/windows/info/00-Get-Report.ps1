@@ -1,6 +1,6 @@
 # 00-Get-Report.ps1
 # Author: Dylan Harvey
-# Automation script that gathers information regarding the machine and its services.
+# Description: Automation script that gathers information regarding the machine and its services.
 
 $outFile = ".\report.txt"
 

@@ -1,6 +1,6 @@
 # 99-Reset-Passwords.ps1
 # Author: Dylan Harvey
-# Automated password reset script, will change passwords for non-excluded user accounts.
+# Description: Automated password reset script, will change passwords for non-excluded user accounts.
 
 $excludedUsers = @("krbtgt", "^blackteam", "^seccdc")  # CHANGE AS NEEDED, SUPPORTS REGEX
 $password = ""  # CHANGE

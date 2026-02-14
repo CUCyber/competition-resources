@@ -1,6 +1,6 @@
 # 50-Create-User.ps1
 # Author: Dylan Harvey
-# Automated user creation script, will create and activate an admin user.
+# Description: Automated user creation script, will create and activate an admin user.
 
 $username = ""  # CHANGE AS NEEDED
 $password = ""  # CHANGE
