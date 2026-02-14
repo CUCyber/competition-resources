@@ -19,7 +19,9 @@ def run_ssh(args, username: str, password: str) -> None:
         "password": password,
         "look_for_keys": False,  # no ~/.ssh/ fallback
         "allow_agent": False,
-        "timeout": 10
+        "timeout": 10,
+        "auth_timeout": 5,
+        "banner_timeout": 5
     }
 
     if args.key:
@@ -148,8 +150,8 @@ def run_winrm(args, username: str, password: str) -> None:
                 auth=(username, password),
                 transport=auth_type,
                 server_cert_validation="ignore",
-                read_timeout_sec=30,
-                operation_timeout_sec=20
+                read_timeout_sec=10,
+                operation_timeout_sec=5
             )
 
             whoami = s.run_ps("whoami")
