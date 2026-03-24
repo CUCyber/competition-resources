@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# automation.py
+# runner.py
 # Author: Dylan Harvey
 # Parent automation script for executing scripts on remote machines
 
@@ -12,7 +12,7 @@ from core.utils import validate_ip, get_credentials, detect_best_method, get_ssh
 from core import runners
 
 def main():
-    parser = argparse.ArgumentParser(description="Automation Runner")
+    parser = argparse.ArgumentParser(description="Remote Runner")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug output")
     parser.add_argument("-l", "--log", metavar="LOGFILE", default="automation.log", help="Logfile path")
 

@@ -1,9 +1,11 @@
 # 99-Reset-Passwords.ps1
 # Author: Dylan Harvey
-# Description: Automated password reset script, will change passwords for non-excluded user accounts.
+# Automated password reset script, will change passwords for non-excluded user accounts.
 
-$excludedUsers = @("krbtgt", "^blackteam", "^seccdc")  # CHANGE AS NEEDED, SUPPORTS REGEX
+$excludedUsers = @("krbtgt", "^blackteam", "^seccdc", '\$$')  # CHANGE AS NEEDED, SUPPORTS REGEX
 $password = ""  # CHANGE
+$MODE = "Auto"  # Mode override, Auto, Domain, or Local
+
 if (!$password) {
     Write-Host "ERROR: Password is not set! Aborting..."
     exit 2
@@ -12,8 +14,16 @@ if (!$password) {
     Start-Sleep 2
 }
 
-$isDC = (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
-Write-Host "[*] Target: $(if ($isDC) {'Domain Controller'} else {'Local Machine'})"
+$passwordSecure = ConvertTo-SecureString $password -AsPlainText -Force
+
+$detectedDC = (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
+if ($Mode -eq "Auto") {
+    $isDC = $detectedDC
+} else {
+    $isDC = ($Mode -eq "Domain")
+}
+
+Write-Host "[*] Operation Mode: $(if ($isDC) {'Domain'} else {'Local'})"
 if ($isDC) {
     $rawNames = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountName
 } else {
@@ -33,13 +43,9 @@ $finalList = $rawNames | Where-Object {
 foreach ($user in $finalList) {
     try {
         if ($isDC) {
-            net user $user $password /domain > $null #2>&1
+            Set-ADAccountPassword -Identity $user -NewPassword $passwordSecure -Reset
         } else {
-            net user $user $password > $null #2>&1
-        }
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Error Code $LASTEXITCODE"
+            Set-LocalUser -Name $user -Password $passwordSecure -ErrorAction Stop
         }
 
         Write-Host "[+] Reset: $user"

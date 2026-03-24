@@ -1,10 +1,11 @@
-# /automation
-This directory contains all the code and tools required to run the system-agnostic automations/initial 30-min plan runner.
-## /linux
+# remote-runner
+A tool I created to execute scripts on remote machines. Similar to ansible but designed for a competition (CCDC) like environment.
+
+## /linux/
 This directory contains all the individual scripts to be run and parsed by the parent automation script for linux machines.
 
 Will be further subdivided into "targets" (subdirectories)
-## /windows
+## /windows/
 This directory contains all the individual scripts to be run and parsed by the parent automation script for windows machines.
 
 Will be further subdivided into "targets" (subdirectories)
@@ -25,12 +26,13 @@ source ./.venv/bin/activate
 Lastly, install required packages:
 ```sh
 pip install -r requirements.txt
+# WARNING/NOTE for WINDOWS: Defender is NOT happy with the impacket install due to examples in the pip package. Disable temporarily or add exception.
 ```
 ### Usage
 ```
-usage: automation.py [-h] [-d] [-l LOGFILE] [-t [TARGET]] [-c [{ssh,winrm,smb,detect}]] [-k [KEY]] ip
+usage: runner.py [-h] [-d] [-l LOGFILE] [-t [TARGET]] [-c [{ssh,winrm,smb,detect}]] [-k [KEY]] ip
 
-Automation Runner
+Remote Runner
 
 positional arguments:
   ip                    Target IP Address
