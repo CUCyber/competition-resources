@@ -1,7 +1,6 @@
 # Get-Info.ps1
 # Author: Dylan Harvey
 # Gathers some basic level information regarding the machine and what services its running. 
-# Manual Version - Useful for injects/enumeration, writes to output file.
 
 $outFile = ".\info.txt"
 

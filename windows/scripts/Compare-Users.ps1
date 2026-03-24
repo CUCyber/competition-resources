@@ -98,5 +98,5 @@ if ($role -ge 4) {
     $adminGroupExtra | ForEach-Object { Write-Host $_ }
 } else { # I've never seen this happen but just in case
     Write-Host "Error determining machine type." -ForegroundColor Red
-    exit 2 # Manually envoked exit
+    exit 2 # Manually evoked exit
 }

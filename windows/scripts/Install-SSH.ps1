@@ -1,6 +1,7 @@
 # Install-SSH.ps1
 # Author: Dylan Harvey
 # Downloads and installs SSH, with option to uninstall.
+# TODO: Use windows feature install rather than manual
 param (
     [switch]$Uninstall
 )

@@ -1,7 +1,6 @@
 # Get-Report.ps1
 # Author: Dylan Harvey
 # Gathers information regarding the machine and its services. Much more detailed than Info.ps1
-# Manual Version - Useful for threat hunting and hardening, writes to output file.
 
 $outFile = ".\report.txt"
 

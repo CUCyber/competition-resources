@@ -1,7 +1,8 @@
 # Create-User.ps1
 # Author: Dylan Harvey
 # Manual user creation script, will create and activate an admin user.
-# Updated: 2026-02-12
+
+#Requires -RunAsAdministrator
 
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
