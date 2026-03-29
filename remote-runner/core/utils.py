@@ -4,7 +4,7 @@ import socket
 import ipaddress
 import logging
 import os
-from .constants import PROTOCOLS, USERNAME_VAR, PASSWORD_VAR
+from .constants import PROTOCOLS, USERNAME_VAR, PASSWORD_VAR, PORT_TIMEOUT
 
 def load_credentials(path=".env") -> dict:
     """
@@ -57,7 +57,7 @@ def get_credentials(args) -> (str, str):
 
 def check_port(ip: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(1)
+        s.settimeout(PORT_TIMEOUT)
         try:
             s.connect((ip, port))
             logging.debug("Port %d is OPEN", port)
