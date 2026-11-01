@@ -1,0 +1,5 @@
+QEMU-GA
+BalloonService
+TabletInputService
+SystemEventsBroker
+Power
