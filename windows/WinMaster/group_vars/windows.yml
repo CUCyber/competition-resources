@@ -1,0 +1,8 @@
+---
+ansible_connection: winrm
+ansible_winrm_transport: "{{ winrm.transport }}"
+ansible_winrm_server_cert_validation: "{{ winrm.server_cert_validation }}"
+ansible_winrm_connection_timeout: "{{ winrm.connection_timeout }}"
+ansible_winrm_read_timeout_sec: "{{ winrm.read_timeout }}"
+ansible_user: "{{ credentials.user }}"
+ansible_password: "{{ credentials.password }}"

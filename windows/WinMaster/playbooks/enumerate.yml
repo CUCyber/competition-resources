@@ -1,0 +1,189 @@
+---
+# =====================================================================
+# enumerate.yml - primary playbook template
+#
+# Flow:  1) scan  ->  2) verify over WinRM + classify  ->  3) write inventory
+#        ->  4) YOUR TASKS against the groups discovered above
+#
+# Run:   ansible-playbook enumerate.yml
+#        ansible-playbook enumerate.yml -e '{"scan": {"networks": ["10.0.0.0/24"], "ports": [5985,5986], "timing": 4}}'
+#
+# Requires in global_config.yml (names as used below):
+#   scan.{networks,exclude,ports,timing,extra_args,skip_host_discovery}
+#   classification.windows_any_ports
+#   winrm.{http_port,https_port,prefer_https}
+#   credentials.{user,password}        (consumed by inventory/group_vars/windows.yml)
+#   output.{write_inventory,directory,timestamp_format,file_prefix,keep_latest_symlink}
+# Group names are hard-coded here because group_vars file names and
+# hosts.yml must match them anyway.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# Play 1: scan the network, build the in-memory 'windows' group
+# ---------------------------------------------------------------------
+- name: Scan for hosts with WinRM open
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - config/global_config.yml
+  tasks:
+    - name: Run nmap (grepable output to stdout)
+      ansible.builtin.command:
+        argv: "{{ nmap_argv }}"
+      vars:
+        nmap_argv: >-
+          {{ ['nmap', '-n', '--open', '-T' ~ scan.timing,
+              '-p', scan.ports | join(','), '-oG', '-']
+             + (['-Pn'] if scan.skip_host_discovery | default(true) else [])
+             + (['--exclude', scan.exclude | join(',')]
+                if scan.exclude | default([]) | length > 0 else [])
+             + (scan.extra_args.split()
+                if scan.extra_args | default('') | length > 0 else [])
+             + scan.networks }}
+      register: nmap
+      changed_when: false
+
+    - name: Parse results into a list of {ip, ports}
+      ansible.builtin.set_fact:
+        found_hosts: >-
+          {{ found_hosts | default([]) + [{
+               'ip': item.split()[1],
+               'ports': item | regex_findall('(\d+)/open') | map('int') | list
+          }] }}
+      loop: "{{ nmap.stdout_lines | select('search', 'Ports:') | list }}"
+      loop_control:
+        label: "{{ item.split()[1] }}"
+
+    - name: Stop if nothing was found
+      ansible.builtin.assert:
+        that: found_hosts | default([]) | length > 0
+        fail_msg: "No hosts with {{ scan.ports | join('/') }} open in {{ scan.networks | join(', ') }}"
+        quiet: true
+
+    - name: Add hosts to the 'windows' group with per-host WinRM settings
+      ansible.builtin.add_host:
+        name: "{{ item.ip }}"
+        groups: windows
+        ansible_port: "{{ winrm.https_port if use_https else winrm.http_port }}"
+        ansible_winrm_scheme: "{{ 'https' if use_https else 'http' }}"
+      vars:
+        # https if it is open and (preferred, or http is not available)
+        use_https: >-
+          {{ winrm.https_port in item.ports
+             and (winrm.prefer_https or winrm.http_port not in item.ports) }}
+      loop: "{{ found_hosts }}"
+      loop_control:
+        label: "{{ item.ip }}"
+      when: item.ports | intersect(classification.windows_any_ports) | length > 0
+
+
+# ---------------------------------------------------------------------
+# Play 2: connect, confirm, and sort hosts by AD role
+#   DomainRole: 0 standalone WS, 1 member WS, 2 standalone server,
+#               3 member server, 4 backup DC, 5 primary DC
+# ---------------------------------------------------------------------
+- name: Verify hosts over WinRM and classify them
+  hosts: windows
+  gather_facts: false
+  vars_files:
+    - config/global_config.yml
+  tasks:
+    - name: Ask the host about its domain role
+      ansible.windows.win_powershell:
+        script: |
+          $cs = Get-CimInstance Win32_ComputerSystem
+          $os = Get-CimInstance Win32_OperatingSystem
+          [PSCustomObject]@{
+            DomainRole = [int]$cs.DomainRole
+            Domain     = $cs.Domain
+            Hostname   = $cs.Name
+            OS         = $os.Caption
+          }
+      register: info
+      ignore_unreachable: true
+      ignore_errors: true
+
+    # NOTE: do not test "info is succeeded" here. An unreachable host has no
+    # 'failed' key, so that test passes. Check for real output instead.
+    - name: Record what the host told us
+      ansible.builtin.set_fact:
+        win_domain_role: "{{ info.output[0].DomainRole }}"
+        win_domain: "{{ info.output[0].Domain }}"
+        win_hostname: "{{ info.output[0].Hostname }}"
+        win_os: "{{ info.output[0].OS }}"
+      when: info.output | default([]) | length > 0
+
+    - name: Group domain controllers
+      ansible.builtin.group_by:
+        key: domain_controllers
+      when: win_domain_role | default(-1) | int >= 4
+
+    - name: Group domain members (non-DC)
+      ansible.builtin.group_by:
+        key: domain_members
+      when: win_domain_role | default(-1) | int in [1, 3]
+
+    - name: Group hosts that did not answer or failed to authenticate
+      ansible.builtin.group_by:
+        key: windows_unmanaged
+      when: win_domain_role is not defined
+
+
+# ---------------------------------------------------------------------
+# Play 3: persist the results as a static inventory
+# ---------------------------------------------------------------------
+- name: Write discovered inventory
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - config/global_config.yml
+  tasks:
+    - name: Write inventory file
+      when: output.write_inventory
+      block:
+        - name: Ensure output directory exists
+          ansible.builtin.file:
+            path: "{{ output.directory }}"
+            state: directory
+            mode: "0755"
+
+        - name: Work out the file name
+          ansible.builtin.set_fact:
+            inv_file: "{{ output.directory }}/{{ output.file_prefix }}{{ output.timestamp_format | strftime }}.yml"
+
+        - name: Render inventory (credentials are never written)
+          ansible.builtin.template:
+            src: discovered_inventory.yml.j2
+            dest: "{{ inv_file }}"
+            mode: "0644"
+
+        - name: Point latest.yml at the newest file
+          ansible.builtin.file:
+            src: "{{ inv_file | basename }}"
+            dest: "{{ output.directory }}/latest.yml"
+            state: link
+          when: output.keep_latest_symlink
+
+
+# ---------------------------------------------------------------------
+# Play 4+: YOUR TASKS. Everything above is plumbing; add plays below.
+# Each play needs the config loaded, because group_vars/windows.yml
+# references winrm.* and credentials.*
+# ---------------------------------------------------------------------
+- name: Example - act on domain controllers
+  hosts: domain_controllers
+  gather_facts: false
+  vars_files:
+    - config/global_config.yml
+  tasks:
+    - name: Placeholder
+      ansible.builtin.debug:
+        msg: "{{ win_hostname }} ({{ inventory_hostname }}) in {{ win_domain }} - {{ win_os }}"
+
+# - name: Example - act on every confirmed Windows host
+#   hosts: windows:!windows_unmanaged
+#   gather_facts: false
+#   vars_files: [config/global_config.yml]
+#   tasks:
+#     - ansible.windows.win_command: whoami

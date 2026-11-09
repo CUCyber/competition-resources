@@ -1,0 +1,44 @@
+---
+# Load it in each play with:  vars_files: [config/global_config.yml]
+
+
+# ====== ENUMERATION ======
+scan:
+  networks:
+    - "192.168.1.0/24"              # Target Subnet
+  exclude:
+    - "127.0.0.1"                   # Excluded IPs
+  ports: [5985, 5986]               # Ports probed.
+  timing: 4                         # nmap "-T" value (1-5)
+  extra_args: "-Pn"                    # Extra raw nmap flags, appended as-is
+
+
+# ====== CLASSIFICATION ======
+classification:
+  windows_any_ports: [5985, 5986]    # Host is a Windows candidate if ANY of these are open
+
+
+# ====== WINRM CONNECTION DEFAULTS ======
+winrm:
+  transport: "ntlm"                  # ntlm | kerberos | credssp | basic
+  prefer_https: true                 # use 5986 if it was found open
+  http_port: 5985
+  https_port: 5986
+  server_cert_validation: "ignore"   # use "validate" in production
+  connection_timeout: 30             # seconds
+  read_timeout: 60                   # seconds (must exceed connection_timeout)
+
+
+# ====== CREDENTIALS ======
+credentials:
+  user: ""
+  password: ""
+
+
+# ====== OUTPUT ======
+output:
+  write_inventory: true
+  directory: "discovered"
+  timestamp_format: "%Y%m%d_%H%M"    # strftime format appended to the file name
+  file_prefix: "inventory_"
+  keep_latest_symlink: true          # discovered/latest.yml -> newest file
