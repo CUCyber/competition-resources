@@ -78,7 +78,7 @@ function Get-UserResponsePassword {
         # Stop if either password is empty
         if ([string]::IsNullOrEmpty($plain1) -or
             [string]::IsNullOrEmpty($plain2)) {
-            Write-Host "[-] Skipping." -ForegroundColor Yellow
+            Write-Host "[-] Skipping.`n" -ForegroundColor Yellow
             return $null
         }
 
@@ -91,6 +91,9 @@ function Get-UserResponsePassword {
 }
 
 # Main
+
+Write-Host "`n====== Resetting Passwords ======`n"
+
 $detectedDC = (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
 if ($Mode -eq "Auto") {
     $isDC = $detectedDC
@@ -112,7 +115,6 @@ if ($Test) {
     }
 }
 
-$results = @()
 $staticSecurePass = $null
 $staticPlainPass = $null
 
@@ -165,12 +167,6 @@ foreach ($user in $finalList) {
         } else {
             Write-Host "[=] TEST: $user" -ForegroundColor DarkGreen
         }
-
-        $results += [PSCustomObject]@{
-            Username = $user
-            Password = $currentPlain
-            Time     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        }
     } catch {
         Write-Host "[!] Failed: $user; $($_.Exception.Message)" -ForegroundColor Red
     }
@@ -222,12 +218,6 @@ if ($isDC) {
                 Set-LocalUser -Name $user -Password $currentSecure -ErrorAction Stop
                 Write-Host "[+] Reset local user: $user" -ForegroundColor Green
             }
-
-            $results += [PSCustomObject]@{
-                Username = "$env:COMPUTERNAME\$user"
-                Password = $currentPlain
-                Time     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            }
         }
         catch {
             Write-Host "[!] Failed local user: $user; $($_.Exception.Message)" -ForegroundColor Yellow
@@ -236,12 +226,4 @@ if ($isDC) {
     }
 }
 
-#if ($OutputLevel -ne "None" -and $results.Count -gt 0) {
-#    $path = "C:\WinMaster\WinMaster_Evidence\passwordResetUsers_$(Get-Date -Format 'yyyy-MM-dd_HH-mm').csv"
-#    if ($OutputLevel -eq "UsernameOnly") {
-#        $results | Select-Object Username, Time | Export-Csv -Path $path -NoTypeInformation
-#    } else {
-#        $results | Export-Csv -Path $path -NoTypeInformation
-#    }
-#    Write-Host "[*] Log written to: $path" -ForegroundColor Cyan
-#}
+Write-Host "[$(Get-Date -Format "HH:mm:ss")] Password reset complete.`n"

@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Lightweight PII file finder. Output: the full path of every file that appears to contain PII.
+    Lightweight PII file finder with timestamped console output and optional pipeline objects.
 
 .DESCRIPTION
     Looks for SSNs, phone numbers, street addresses and credit card numbers (Luhn-checked) in
@@ -9,7 +9,8 @@
     file stops), and each file is reported at most once.
 
     Output streams
-      * Success stream : one file path per line, nothing else (no banners, progress or summary).
+      * Host output    : timestamped start, findings, and completion messages via Write-Host.
+      * Success stream : Timestamp/Path objects only when -PassThru is specified.
       * Error stream   : access failures and similar, as non-terminating errors ("Kind: path - message").
                          The script never throws on unreadable files/folders; it keeps going.
 
@@ -22,22 +23,28 @@
 
     What this version leaves out compared with the heavy one: Office/ZIP documents, email/DOB/
     driver's-license/passport patterns, other drives and shares, value masking, line numbers,
-    progress/summary output.
+    detailed scan progress.
 
 .PARAMETER Path
     Folders to scan instead of the default locations.
 .PARAMETER Threads
     Worker threads. Default: CPU cores, clamped to 2..8.
+.PARAMETER PassThru
+    Also emit Timestamp/Path objects for CSV export or other pipeline commands.
+    Console messages still display; timestamps record when results are reported.
 
 .EXAMPLE
-    .\Find-PII-Light.ps1 | Out-File C:\WinMaster\pii-files.txt
+    .\Find-PII-Light.ps1
+.EXAMPLE
+    .\Find-PII-Light.ps1 -PassThru | Export-Csv C:\WinMaster\pii-findings.csv -NoTypeInformation
 .EXAMPLE
     .\Find-PII-Light.ps1 -Path D:\Exports -ErrorVariable scanErrors
 #>
 [CmdletBinding()]
 param(
     [string[]]$Path,
-    [ValidateRange(1, 64)][int]$Threads = [Math]::Max(2, [Math]::Min(8, [Environment]::ProcessorCount))
+    [ValidateRange(1, 64)][int]$Threads = [Math]::Max(2, [Math]::Min(8, [Environment]::ProcessorCount)),
+    [switch]$PassThru
 )
 
 # Errors must be reported, never allowed to terminate the run (even if the caller set 'Stop').
@@ -273,6 +280,16 @@ public sealed class PiiScanner
     // ---------- file scanning ----------
     private void ScanFile(string path, WorkerCtx w)
     {
+        
+        // Skip the user registry hive.
+        if(string.Equals(
+            Path.GetFileName(path),
+            "NTUSER.DAT",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         // FileShare.ReadWrite|Delete lets us read files other programs have open.
         using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan))
         {
@@ -438,24 +455,37 @@ $scanner = New-Object $scannerType -Property @{
     ThreadCount   = $Threads
 }
 
-# Moves finished results out of the engine. Hits go to the success stream (the script's ONLY normal output);
-# errors go to the error stream. Bounded by the engine's error cap, with one note if errors were dropped.
+# Display findings immediately; optionally emit objects for pipeline use.
+# Errors retain their error-stream behavior and can be captured with -ErrorVariable.
 $errorsShown = 0
+$findingsShown = 0
 function Receive-Result {
     $item = $null
-    while ($scanner.Hits.TryDequeue([ref]$item)) { $item }
+    while ($scanner.Hits.TryDequeue([ref]$item)) {
+        $finding = [pscustomobject]@{
+            Timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+            Path      = $item
+        }
+        $script:findingsShown++
+        Write-Host ("[{0}] [PII] {1}" -f $finding.Timestamp, $finding.Path) -ForegroundColor Yellow
+        if ($PassThru) { $finding }
+    }
+
     $e = $null
     while ($scanner.Errors.TryDequeue([ref]$e)) {
         $script:errorsShown++
-        Write-Error ("{0}: {1} - {2}" -f $e.Kind, $e.Path, $e.Message)
+        Write-Error ("[$(Get-Date -Format 'HH:mm:ss')] {0}: {1} - {2}" -f $e.Kind, $e.Path, $e.Message)
     }
 }
 
 try {
+    Write-Host ("[{0}] Starting PII scan..." -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) -ForegroundColor Cyan
     $scanner.Start([string[]]$roots)
     do { Start-Sleep -Milliseconds 250; Receive-Result } while ($scanner.IsRunning)
     Receive-Result
     if ($scanner.ErrorCount -gt $errorsShown) { Write-Error ("{0} additional access errors were not listed." -f ($scanner.ErrorCount - $errorsShown)) }
+    Write-Host ("[{0}] Scan complete: {1} finding(s) reported; {2} scan error(s)." -f
+        (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $findingsShown, $scanner.ErrorCount) -ForegroundColor Cyan
 }
 finally {
     $scanner.Cancel()   # on Ctrl+C / stop: tell workers to wind down (no-op after a normal finish)

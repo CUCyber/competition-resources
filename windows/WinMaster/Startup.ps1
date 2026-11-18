@@ -9,10 +9,9 @@ if(-not(Test-Path -Path "C:\SysinternalsSuite" -PathType Container)) {
     try {
         
         # Run the installation script
-        #Set-ExecutionPolicy unrestricted
         Start-Process powershell.exe `
             -WindowStyle Hidden `
-            -ArgumentList '-NoProfile', '-File', '-ExecutionPolicy Bypass', '.\Install-Sysinternals.ps1' `
+            -ArgumentList '-NoProfile', '-ExecutionPolicy Bypass', '-File', '.\Install-Sysinternals.ps1' `
             -Wait
     }
     catch {

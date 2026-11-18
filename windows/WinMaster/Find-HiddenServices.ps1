@@ -13,6 +13,8 @@ param(
 
 $servicesKey = 'HKLM:\SYSTEM\CurrentControlSet\Services'
 
+Write-Host "`n====== Search for Hidden Services ======`n"
+
 # --- List 1: services the Service Control Manager will show us -----------------------------------
 # Per-user services get a random suffix (e.g. CDPUserSvc_3b7d9) that doesn't exist in the registry, so strip it.
 # @() guarantees an array (never $null), which is what Compare-Object needs.
@@ -72,9 +74,11 @@ $hiddenServices | ForEach-Object { Write-Host $_}
 foreach ($service in $hiddenServices) {
 
     if($actionParam -eq '1', '2', 'A', 'S') {
+        $action = $actionParam
+    } else {
         $action = Read-Host -Prompt "Action for service '$service' (1: Remove, 2: Keep, A: Remove ALL, S: Skip ALL)"
     }
-    $action = $actionParam
+    
 
     if ($action -eq "1") {
         Write-Host "Removing service: $service"
@@ -103,3 +107,5 @@ foreach ($service in $hiddenServices) {
         Write-Host "Invalid Option. Skipping Service: $service"
     }
 }
+
+Write-Host ""

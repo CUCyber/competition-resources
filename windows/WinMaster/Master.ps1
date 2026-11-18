@@ -14,17 +14,10 @@
 #
 # Create new Active Directory hardening script
 #
-# Add IIS webshell detection script to master workflow
-#
 # Create a database/webserver backup script (also generic system files)
 # - Detect and backup any databases and webservers on the machine
 #
-#
-# Rewrite in rust or python or compile into an exe
-# Add execution flags (if possible)
-# Add remote execution (With WinRM maybe)
-#   - Add capacity for mass network execution & enumeration from a remote jump box/your device
-#      - Implement support for "Evidence" directories for every inputted machine
+# Script to disable uneeded users (interactive)
 
 # Implement nosferatu patch: insert DWORD key with value 1 at Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa
 # Disable RDP shadowing
@@ -33,10 +26,24 @@
 
 
 # Detection only scripts (for now, some will be updated):
-# - Find-WindowsTamper, ProfileCheck, Check-ScheduledTasks, Check-Services2, Find-HiddenServices, Find-PII-Light, Get-Report
+# - Check-Services2
+# - Find-PII-Light (COMPLETE)
+# - Find-PII-Heavy
+# - Get-Report (COMPLETE)
+# - FindWindowsTamper
 
 # Detection and Remediation scripts:
-# - CheckFirewall5, Disable-RunKeys
+# - CheckFirewall5 (COMPLETE)
+# - Disable-RunKeys (COMPLETE)
+# - ProfileCheck1 (COMPLETE)
+# - Check-ScheduledTasks (COMPLETE)
+
+# Automatic Remediation Scripts
+# - rmbin2 (COMPLETE)
+
+# Remediation scripts that should be interactive:
+# - Find-HiddenServices (interactive if you don't include: -actionParam "[action]")
+# - Find-IISWebshells (interactive with: -Action Review)
 
 
 # EXIT CODE LEGEND:
@@ -61,8 +68,7 @@ function Test-LsaProtected {
 
 
 # ======= BEGIN STAGE 1: Script Validation =======
-
-Write-Host "Starting Stage 1..."
+Write-Host "[$(Get-Date -Format "HH:mm:ss")] Starting Stage 1..."
 
 Set-Location "C:\WinMaster"
 
@@ -239,13 +245,13 @@ $processes["CheckFirewall5"] = Start-Process powershell.exe `
     -RedirectStandardError '.\WinMaster_Evidence\ERROR-CheckFirewall5.txt' `
     -PassThru
 
-Write-Host -ForegroundColor Cyan "Running Find-HiddenServices.ps1, review log in .\WinMaster_Evidence\Find-HiddenServices.txt"
-$processes["Find-HiddenServices"] = Start-Process powershell.exe `
-    -WindowStyle Hidden `
-    -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass','-actionParam', '2', '-File', '.\Find-HiddenServices.ps1' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\Find-HiddenServices.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-HiddenServices.txt' `
-    -PassThru
+#Write-Host -ForegroundColor Cyan "Running Find-HiddenServices.ps1, review log in .\WinMaster_Evidence\Find-HiddenServices.txt"
+#$processes["Find-HiddenServices"] = Start-Process powershell.exe `
+#    -WindowStyle Hidden `
+#    -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass','-actionParam', '2', '-File', '.\Find-HiddenServices.ps1' `
+#    -RedirectStandardOutput '.\WinMaster_Evidence\Find-HiddenServices.txt' `
+#    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-HiddenServices.txt' `
+#    -PassThru
 
 Write-Host -ForegroundColor Cyan "Running Check-ScheduledTasks.ps1, review log in .\WinMaster_Evidence\Check-ScheduledTasks.txt"
 $processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
@@ -258,6 +264,14 @@ $processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
 if($LASTEXITCODE -eq 0) {
     $suspiciousScheduledTasksFound = $true
 }
+
+#Write-Host -ForegroundColor Cyan "Running Find-IISWebshells.ps1, review log in .\WinMaster_Evidence\Find-IISWebshells.txt"
+#$processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
+#    -WindowStyle Hidden `
+#    -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Action', 'Review', '-File', '.\Find-IISWebshells.ps1' `
+#    -RedirectStandardOutput '.\WinMaster_Evidence\Find-IISWebshells.txt' `
+#    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-IISWebshells.txt' `
+#    -PassThru
 
 # Non-script miscellaneous fixes
 Write-Host -ForegroundColor Cyan "Checking common Windows Folders with sigcheck.exe"

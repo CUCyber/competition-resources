@@ -691,6 +691,8 @@ if ($shown -eq 0) {
 # Export (CSV + SHA256 sidecar)
 # ---------------------------------------------------------------------------
 $csvPath = $null
+$NoExport = $true
+
 if (-not $NoExport -and $sorted.Count -gt 0) {
     try {
         New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null

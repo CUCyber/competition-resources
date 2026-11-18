@@ -3,29 +3,32 @@
 # Enable firewall and set defaults to block
 Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True -DefaultInboundAction Block -DefaultOutboundAction Block
 
+Write-Host "`n====== Auditing Firewall ======`n"
+
 # Fetch all relevant firewall rules
-Write-Host "Fetching firewall rules..." -ForegroundColor Cyan
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Fetching firewall rules..." -ForegroundColor Cyan
 $allRules = @(Get-NetFirewallRule -Enabled True -Action Allow -Direction Inbound)
 $total = $allRules.Count
 
 if ($total -eq 0) {
-    Write-Host "No enabled inbound Allow rules found on this machine." -ForegroundColor Yellow
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] No enabled inbound Allow rules found on this machine." -ForegroundColor Yellow
     exit 2
 }
 
-Write-Host "Scanning $total rules...`n" -ForegroundColor Cyan
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Scanning $total rules...`n" -ForegroundColor Cyan
 
 # Convert profile string to bitmask safely
 function Get-ProfileMask {
-    param($profile)
+    param($profileValue)
 
-    if ($profile -is [int]) { return $profile }
+    $text = "$profileValue"
+
+    if ($text -match "Any") { return 7 }
 
     $mask = 0
-
-    if ($profile -match "Domain")  { $mask = $mask -bor 1 }
-    if ($profile -match "Private") { $mask = $mask -bor 2 }
-    if ($profile -match "Public")  { $mask = $mask -bor 4 }
+    if ($text -match "Domain")  { $mask = $mask -bor 1 }
+    if ($text -match "Private") { $mask = $mask -bor 2 }
+    if ($text -match "Public")  { $mask = $mask -bor 4 }
 
     return $mask
 }
@@ -44,7 +47,6 @@ foreach ($r in $allRules) {
     $localAny   = ($p.LocalPort  -eq $null -or @($p.LocalPort)  -contains "Any")
     $remoteAny  = ($p.RemotePort -eq $null -or @($p.RemotePort) -contains "Any")
     $addrAny    = ($a.RemoteAddress -eq $null -or @($a.RemoteAddress) -contains "Any")
-    $progAny    = ($app.Program -eq $null -or $app.Program -eq "Any" -or $app.Program -eq "System")
 
     $profileMask = Get-ProfileMask $r.Profile
     $profileAny  = ($profileMask -eq 7)   # Domain + Private + Public
@@ -60,7 +62,7 @@ foreach ($r in $allRules) {
     $isRealExe = ($app.Program -and $app.Program -match "\\.*\.exe$")
     if (-not $isRealExe) { continue }
 
-    if ($localAny -and $remoteAny -and $addrAny -and $progAny -and $profileAny) {
+    if ($localAny -and $remoteAny -and $addrAny -and $profileAny) {
 
         $results += [PSCustomObject]@{
             Name      = $r.DisplayName
@@ -70,18 +72,16 @@ foreach ($r in $allRules) {
         }
 
         # Disable rule
-        Write-Host "Disabling rule: $($r.DisplayName)"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Disabling rule: $($r.DisplayName)"
         Disable-NetFirewallRule -InputObject $r
     }
 }
 
 # Summary line
-Write-Host "Scan complete. $current rules checked, $($results.Count) match(es) found.`n" -ForegroundColor Cyan
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Scan complete. $current rules checked, $($results.Count) match(es) found.`n" -ForegroundColor Cyan
 
 if ($results.Count -gt 0) {
     $results
-} else {
-    Write-Host "No matching firewall rules found." -ForegroundColor Yellow
 }
 
 exit 0

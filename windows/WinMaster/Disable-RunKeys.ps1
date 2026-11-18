@@ -16,11 +16,13 @@ $RunKeys = @(
     "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run"
 )
 
+Write-Host "`n====== Checking RunKeys ======`n"
+
 # Check each keypath
 foreach ($KeyPath in $RunKeys) {
     # Only process the item if it exists
     if (Test-Path $KeyPath) {
-        Write-Host "Processing: $KeyPath" -ForegroundColor Cyan
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Processing: $KeyPath"
         
         # Create ScriptDisabled path
         $DisabledPath = Join-Path $KeyPath "ScriptDisabled"
@@ -38,7 +40,7 @@ foreach ($KeyPath in $RunKeys) {
         # Print report for each name
         foreach ($Name in $ValueNames) {
             $Data = (Get-ItemProperty -Path $KeyPath -Name $Name).$Name
-            Write-Host "  Disabling: $Name" -ForegroundColor Yellow
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] - Disabling: $Name" -ForegroundColor Yellow
             
             New-ItemProperty -Path $DisabledPath -Name $Name -Value $Data -PropertyType String -Force | Out-Null
             
@@ -46,3 +48,5 @@ foreach ($KeyPath in $RunKeys) {
         }
     }
 }
+
+Write-Host -ForegroundColor Cyan "`n[$(Get-Date -Format 'HH:mm:ss')] Check complete.`n"

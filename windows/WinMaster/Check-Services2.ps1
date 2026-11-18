@@ -211,6 +211,8 @@ function Get-ServiceExecutablePath([string]$CommandLine) {
     return Resolve-ExeExtension (($expanded -split '\s+', 2)[0])
 }
 
+Write-Host "`n====== Check Services ======`n"
+
 # =================================================================================================
 # Step 1: Collect services
 # =================================================================================================
@@ -309,12 +311,13 @@ $results = @($results | Sort-Object Score -Descending)
 # Step 3: Report
 # =================================================================================================
 if ($results.Count -gt 0) {
-    Write-Host "Potentially suspicious services detected: $($results.Count)" -ForegroundColor Yellow
-    Write-Host ('-' * 50)
+    Write-Host [$(Get-Date -Format 'HH:mm:ss')] "Potentially suspicious services detected: $($results.Count)`n" -ForegroundColor Yellow
 
     foreach ($r in $results) {
         # Summary line, then description and path, then one bullet per indicator
-        Write-Host "[RISK SCORE: $($r.Score)] Name: $($r.Name) - Display Name: $($r.DisplayName) - State: $($r.State)"
+        Write-Host -ForegroundColor Yellow "[$(Get-Date -Format 'HH:mm:ss')] Found Service: $($r.DisplayName)"
+        Write-Host "[RISK SCORE: $($r.Score)] Service Name: $($r.Name) - Display Name: $($r.DisplayName)"
+        Write-Host "    State: $($r.State)"
         Write-Host "    Description: $($r.Description)"
         Write-Host "    Binary Path: $($r.PathName)"
         foreach ($h in $r.HitList) { Write-Host "`t- $($h.Text)" }
@@ -323,10 +326,10 @@ if ($results.Count -gt 0) {
 
     # Optional CSV export (HitList is dropped because it doesn't flatten well; Indicators has the same info as text)
     # -Encoding UTF8 prevents non-ASCII characters in descriptions being mangled (Windows PowerShell 5.1 defaults to ASCII)
-    if ($CsvPath) {
-        $results | Select-Object * -ExcludeProperty HitList | Export-Csv -LiteralPath $CsvPath -NoTypeInformation -Encoding UTF8
-        Write-Host "Exported to $CsvPath"
-    }
+    #if ($CsvPath) {
+    #    $results | Select-Object * -ExcludeProperty HitList | Export-Csv -LiteralPath $CsvPath -NoTypeInformation -Encoding UTF8
+    #    Write-Host "Exported to $CsvPath"
+    #}
 }
 else {
     Write-Host 'No potentially suspicious services detected.'

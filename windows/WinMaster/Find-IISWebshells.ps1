@@ -13,15 +13,15 @@
     a clean result as "nothing obvious," not "clean."
 
 .EXAMPLE
-    .\Find-IISWebshells.ps1 -DaysBack 30 -OutputCsv C:\Temp\webshell_hits.csv
+    .\Find-IISWebshells.ps1 -DaysBack 30
 #>
 
 [CmdletBinding()]
 param(
     [int]$DaysBack = 30,
     [string]$LogPath = "C:\inetpub\logs\LogFiles",
-    [string]$OutputCsv = ".\iis_webshell_findings.csv",
-    [string[]]$ExtraPaths = @()
+    [string[]]$ExtraPaths = @(),
+    [string]$Action
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -36,6 +36,8 @@ function Add-Finding($Type, $Path, $Detail, $Severity = 'Medium') {
         Detail   = $Detail
     })
 }
+
+Write-Host "`n====== Search for IIS Webshells ======`n"
 
 # ---------------------------------------------------------------
 # 1. Discover web roots
@@ -171,7 +173,14 @@ foreach ($e in $sysmon) {
 # ---------------------------------------------------------------
 # 5. IIS log hunting
 # ---------------------------------------------------------------
-if (Test-Path $LogPath) {
+if(-not (Test-Path $LogPath)) { 
+    Write-Host -ForegroundColor Yellow "[$(Get-Date -Format 'HH:mm:ss')] Log path not found: $LogPath. Skipping log analysis." 
+    $skip1 = $false    
+} else {
+    $skip1 = $true
+}
+
+if((Test-Path $LogPath) -and $skip1) {
     Write-Host "[*] Scanning IIS logs in $LogPath ..." -ForegroundColor Cyan
     $logPatterns = '(?i)(cmd=|exec=|whoami|powershell|certutil|%20-enc|/c\+|net\+user|\.\./\.\./|eval\()'
     Get-ChildItem $LogPath -Recurse -Filter *.log |
@@ -214,7 +223,93 @@ if (Test-Path $LogPath) {
 # Output
 # ---------------------------------------------------------------
 $sorted = $findings | Sort-Object @{e={switch($_.Severity){'High'{0}'Medium'{1}default{2}}}}, Type
-$sorted | Export-Csv -NoTypeInformation -Path $OutputCsv
-Write-Host "`n[+] $($findings.Count) findings written to $OutputCsv" -ForegroundColor Green
-$sorted | Group-Object Severity | ForEach-Object { Write-Host ("    {0}: {1}" -f $_.Name, $_.Count) }
+
+$sorted | Group-Object Severity | ForEach-Object { Write-Host -ForegroundColor Yellow ("[$(Get-Date -Format 'HH:mm:ss')] {0}: {1}" -f $_.Name, $_.Count) }
 $sorted | Where-Object Severity -eq 'High' | Format-Table Type, Path, Detail -AutoSize -Wrap
+
+Write-Host ""
+
+
+# ---------------------------------------------------------------
+# Interactive review — enabled with -Action Review
+# ---------------------------------------------------------------
+if($Action -eq 'Review') {
+
+    if(-not $sorted) {
+        Write-Host "No findings to review." -ForegroundColor Green
+    }
+
+    :ReviewFindings foreach($finding in $sorted) {
+
+        # Show the current finding.
+        Write-Host "`n====== Review Finding ======" -ForegroundColor Cyan
+        Write-Host "Timestamp: [$(Get-Date -Format 'HH:mm:ss')]"
+        $finding |
+            Format-List Type, Severity, Path, Detail |
+            Out-Host
+
+        # Keep prompting until the operator enters a valid choice.
+        do {
+            $choice = (Read-Host "[R] Remediate | [S] Skip (default) | [Q] Quit").
+                Trim().ToUpperInvariant()
+
+            if ($choice -notin @('', 'R', 'S', 'Q')) {
+                Write-Host "Enter R, S, or Q." -ForegroundColor Yellow
+            }
+        } until ($choice -in @('', 'R', 'S', 'Q'))
+
+        if ($choice -eq 'Q') {
+            Write-Host "Leaving interactive review."
+            break ReviewFindings
+        }
+
+        # Enter without a selection also skips the finding.
+        if ($choice -ne 'R') {
+            Write-Host "Skipped."
+            continue ReviewFindings
+        }
+
+        try {
+            # Choose the appropriate action for this finding type.
+            switch ($finding.Type) {
+
+                { $_ -in @('SuspiciousContent', 'DoubleExtension', 'ScriptInStaticDir') } {
+
+                    # Delete the file
+                    Remove-Item -Path $finding.Path -Force -ErrorAction Stop
+                }
+
+                'W3WPChildProcess' {
+                    
+                    # Attempt to terminate the proces
+                    Stop-Process -id ($finding.ProcessId) -Force -ErrorAction Stop
+
+                    # Flag if termination fails
+                    if(Get-Process -id ($finding.ProcessId)) {
+                        Write-Host -ForegroundColor Red "Process (PID: $($finding.ProcessId)) could not be terminated."
+                    }
+
+                    # Delete the executable
+                    Remove-Item -Path $finding.Path -Force -ErrorAction Stop
+                    
+                }
+
+                default {
+                    # Timestamp, compiled-file, and historical/log findings
+                    # require investigation before selecting a concrete fix.
+                    Write-Warning (
+                        "Manual review required for finding type: {0}" -f
+                        $finding.Type
+                    )
+                }
+            }
+        }
+        catch {
+            Write-Warning (
+                "Action generically failed for '{0}': {1}" -f
+                $finding.Path, $_.Exception.Message
+            )
+        }
+    }
+    Write-Host ""
+}
