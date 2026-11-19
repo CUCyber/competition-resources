@@ -9,7 +9,11 @@
     system-drive data folders AND loose root files. -Path accepts files, folders and wildcards.
     Other drives, all AppData/ProgramData, mapped drives, links and cloud hydration are opt-in.
     Detection is heuristic. Default Hits is one per type/file; -CountAll counts occurrences.
-    Samples are masked unless -ShowValues. Locations in extracted text are not source page numbers.
+    Samples are partially masked unless -ShowValues; address street names remain visible.
+    Each finding includes line/column, match reason, and an example-data note when applicable.
+    -ShowValues also includes a short unmasked context excerpt. Treat that output as sensitive.
+    Locations in extracted text are not source page numbers. Recycle Bin $I metadata is skipped;
+    the corresponding $R content is scanned normally.
     XML extraction preserves split text runs; spreadsheet styles/shared-string references are not
     reconstructed as records. PDF OCR, legacy Office, PST/OST, databases, 7z/RAR, encrypted content,
     and full RTF interpretation are not supported. Skipped/partial work is included in the summary.
@@ -97,10 +101,10 @@ using Microsoft.Win32.SafeHandles;
 
 namespace PiiHeavyEngine {
 public enum Stat { Dirs, Seen, Attempted, Files, Partial, Failed, Office, Archives, Pdf, Bytes, Findings,
-    Errors, SkipExt, SkipBinary, SkipSize, SkipCloud, SkipLink, SkipExcluded, SkipDuplicate, SkipUnsupported, SkipEmpty }
+    Errors, SkipExt, SkipBinary, SkipSize, SkipCloud, SkipLink, SkipExcluded, SkipDuplicate, SkipUnsupported, SkipEmpty, SkipMetadata }
 public sealed class Finding {
-    public string Type, Confidence, File, Location, Sample, ScanStatus;
-    public long Hits, Size; public DateTime Timestamp, Modified;
+    public string Type, Confidence, File, Location, Sample, ScanStatus, Reason, ReviewNote, Context;
+    public long Hits, Size, Line, Column, MatchLength; public DateTime Timestamp, Modified;
 }
 public sealed class ScanError { public DateTime Timestamp; public string Path, Kind, Message; }
 public sealed class Scanner {
@@ -144,12 +148,16 @@ public sealed class Scanner {
         new[]{"RoutingNumber", @"\b(?:routing(?:[ \t]+(?:number|no\.?))?|ABA(?:[ \t]+routing)?)[\""' :#=\t-]{0,12}(?<v>[0-9]{9})(?![0-9])", "ABA", "High"},
         new[]{"TaxID", @"\b(?:EIN|employer[ \t]+identification(?:[ \t]+number)?)[\""' :#=\t-]{0,12}(?<v>[0-9]{2}-?[0-9]{7})(?![0-9])", "Nonzero", "Medium"}
     };
-    sealed class Rule { public Regex Rx; public int Index; public string Check, Confidence; }
+    sealed class Rule { public Regex Rx; public int Index; public string Check, Confidence, Reason; }
     sealed class Item { public string Path; public bool Dir; public long Size; public DateTime Modified; public int Kind; }
     sealed class State {
-        public long[] Hits; public string[] Sample, Location, Confidence; public bool[] Done;
+        public long[] Hits, Line, Column, MatchLength; public string[] Sample, Location, Confidence, Reason, ReviewNote, Context; public bool[] Done;
         public bool Incomplete, ReadAny, Skipped; public string Label; public long Budget; public int Entries;
-        public State(int n, long budget) { Hits=new long[n]; Sample=new string[n]; Location=new string[n]; Confidence=new string[n]; Done=new bool[n]; Budget=budget; }
+        public State(int n, long budget) {
+            Hits=new long[n]; Line=new long[n]; Column=new long[n]; MatchLength=new long[n];
+            Sample=new string[n]; Location=new string[n]; Confidence=new string[n]; Reason=new string[n];
+            ReviewNote=new string[n]; Context=new string[n]; Done=new bool[n]; Budget=budget;
+        }
         public bool AllDone { get { foreach (bool b in Done) if (!b) return false; return true; } }
     }
     sealed class Worker { public char[] Buf = new char[ChunkChars + Overlap]; public byte[] Head = new byte[HeadBytes]; }
@@ -181,12 +189,28 @@ public sealed class Scanner {
         if(n<=MaxErrors) Errors.Enqueue(new ScanError { Timestamp=DateTime.Now, Path=path, Kind=ex.GetType().Name, Message=ex.Message });
     }
     void Partial(State s,string path,string reason) { s.Incomplete=true; Error(path,new InvalidDataException(reason)); }
+    static string MatchReason(string[] rule) {
+        switch(rule[0]) {
+            case "SSN": return rule[2]=="Loose"?"Unlabelled nine-digit SSN-like value.":rule[3]=="High"?"SSN label followed by a valid SSN digit pattern.":"SSN digit groups with matching separators.";
+            case "Phone": return rule[2]=="Loose"?"Unlabelled ten-digit NANP phone-like value.":"Phone label or recognizable telephone-number formatting.";
+            case "Address": return rule[1].Contains("Box")?"PO box address format.":"House number, street name and recognized street suffix.";
+            case "CreditCard": return "Payment-card format and valid Luhn checksum.";
+            case "Email": return "Email-address syntax.";
+            case "DOB": return "Birth-date label followed by a valid, non-future date.";
+            case "DriversLicense": return "Driver-license label followed by an identifier containing digits.";
+            case "Passport": return "Passport label followed by an identifier containing digits.";
+            case "IBAN": return "IBAN format and valid mod-97 checksum.";
+            case "BankAccount": return "Bank/account-number label followed by a numeric identifier.";
+            case "RoutingNumber": return "Routing-number label, ABA prefix and valid checksum.";
+            default: return "EIN/employer-identification label followed by a tax-ID-like number.";
+        }
+    }
     void BuildRules() {
         HashSet<string> wanted=Set(Types); List<string> types=new List<string>(); List<Rule> list=new List<Rule>();
         foreach(string[] d in Defs) {
             if(!wanted.Contains(d[0]) || (d[2]=="Loose" && !IncludeUnlabelledNumbers)) continue;
             int i=types.IndexOf(d[0]); if(i<0) { i=types.Count; types.Add(d[0]); }
-            list.Add(new Rule { Index=i, Check=d[2], Confidence=d[3], Rx=new Regex(d[1],RegexOptions.Compiled|RegexOptions.CultureInvariant|RegexOptions.IgnoreCase|RegexOptions.ExplicitCapture,TimeSpan.FromSeconds(RegexSeconds)) });
+            list.Add(new Rule { Index=i, Check=d[2], Confidence=d[3], Reason=MatchReason(d), Rx=new Regex(d[1],RegexOptions.Compiled|RegexOptions.CultureInvariant|RegexOptions.IgnoreCase|RegexOptions.ExplicitCapture,TimeSpan.FromSeconds(RegexSeconds)) });
         }
         names=types.ToArray(); rules=list.ToArray(); if(names.Length==0) throw new ArgumentException("No enabled detection rules.");
     }
@@ -214,6 +238,10 @@ public sealed class Scanner {
             Item it=new Item { Path=path, Dir=dir };
             if(!dir) {
                 Inc(Stat.Seen); string name=Path.GetFileName(path);
+                // $I records inherit the deleted file's extension but contain metadata, not its data.
+                bool recycle=false;
+                foreach(string part in path.Split(new[]{'\\','/'})) if(part.Equals("$Recycle.Bin",StringComparison.OrdinalIgnoreCase)) { recycle=true; break; }
+                if(recycle && name.StartsWith("$I",StringComparison.OrdinalIgnoreCase)) { Inc(Stat.SkipMetadata); return; }
                 if(name.Equals("NTUSER.DAT",StringComparison.OrdinalIgnoreCase) || name.Equals("UsrClass.dat",StringComparison.OrdinalIgnoreCase) || name.Equals("desktop.ini",StringComparison.OrdinalIgnoreCase) || name.Equals("thumbs.db",StringComparison.OrdinalIgnoreCase)) { Inc(Stat.SkipExcluded); return; }
                 it.Kind=Kind(Path.GetExtension(path)); if(it.Kind<0) { Inc(it.Kind==-2?Stat.SkipUnsupported:Stat.SkipExt); return; }
                 FileInfo fi=new FileInfo(path); it.Size=fi.Length; it.Modified=fi.LastWriteTimeUtc;
@@ -272,7 +300,7 @@ public sealed class Scanner {
             for(int i=0;i<names.Length;i++) if(s.Hits[i]>0) {
                 while(!cancel && Findings.Count>=2000) Thread.Sleep(10);
                 string loc=s.Location[i]; if(loc.StartsWith(it.Path,PathComparison)) loc=loc.Substring(it.Path.Length).TrimStart(':',' ');
-                Findings.Enqueue(new Finding { Timestamp=DateTime.Now, Type=names[i], Confidence=s.Confidence[i], File=it.Path, Location=loc, Hits=s.Hits[i], Sample=s.Sample[i], Size=it.Size, Modified=it.Modified, ScanStatus=s.Incomplete?"Partial":"Completed" }); Inc(Stat.Findings);
+                Findings.Enqueue(new Finding { Timestamp=DateTime.Now, Type=names[i], Confidence=s.Confidence[i], File=it.Path, Location=loc, Hits=s.Hits[i], Sample=s.Sample[i], Size=it.Size, Modified=it.Modified, ScanStatus=s.Incomplete?"Partial":"Completed", Line=s.Line[i], Column=s.Column[i], MatchLength=s.MatchLength[i], Reason=s.Reason[i], ReviewNote=s.ReviewNote[i], Context=s.Context[i] }); Inc(Stat.Findings);
             }
         }
     }
@@ -466,7 +494,7 @@ public sealed class Scanner {
         } finally { try { Directory.Delete(dir,true); } catch(Exception ex) { Error(dir,new IOException("Could not remove this scan's PDF temporary directory.",ex)); } }
     }
     void Reader(TextReader reader,char[] buf,State s) {
-        int carry=0; long offset=0,lineBase=0; bool eof=false;
+        int carry=0; long offset=0,lineBase=0,columnBase=1; bool eof=false;
         HashSet<long>[] seen=new HashSet<long>[names.Length]; for(int i=0;i<seen.Length;i++) seen[i]=new HashSet<long>();
         while(!eof && !cancel && !s.AllDone) {
             int n=reader.ReadBlock(buf,carry,ChunkChars); eof=n<ChunkChars; int len=carry+n; if(len==0) break;
@@ -478,12 +506,28 @@ public sealed class Scanner {
                     for(Match m=rule.Rx.Match(text);m.Success && m.Index<limit;m=m.NextMatch()) {
                         Group g=m.Groups["v"]; string value=g.Value;
                         if(!Valid(rule.Check,ref value) || !seen[t].Add(offset+g.Index)) continue;
-                        if(++s.Hits[t]==1) { s.Sample[t]=ShowValues?value:Mask(value,names[t]); s.Location[t]=s.Label+":line "+(lineBase+Newlines(text,g.Index)+1); s.Confidence[t]=rule.Confidence; }
+                        if(++s.Hits[t]==1) {
+                            int previous=g.Index>0?text.LastIndexOf('\n',g.Index-1):-1;
+                            s.Line[t]=lineBase+Newlines(text,g.Index)+1;
+                            s.Column[t]=previous>=0?g.Index-previous:columnBase+g.Index;
+                            s.MatchLength[t]=value.Length; s.Reason[t]=rule.Reason;
+                            s.Sample[t]=ShowValues?value:Mask(value,names[t]);
+                            s.Location[t]=s.Label+":line "+s.Line[t]+", column "+s.Column[t]; s.Confidence[t]=rule.Confidence;
+                            int next=text.IndexOf('\n',g.Index); if(next<0) next=text.Length;
+                            int left=Math.Max(previous+1,g.Index-60),right=Math.Min(next,g.Index+Math.Min(value.Length,120)+60);
+                            string excerpt=text.Substring(left,right-left).TrimEnd('\r');
+                            if(ShowValues) s.Context[t]=(left>previous+1?"...":"")+excerpt+(right<next?"...":"");
+                            if(Regex.IsMatch(s.Label??"",@"\.(?:ps1|psm1|psd1|py|js|cs|java|c|cpp|h|md|rst)$",RegexOptions.IgnoreCase) &&
+                               Regex.IsMatch(excerpt,@"\b(?:example|sample|dummy|placeholder|test data|shortest possible)\b",RegexOptions.IgnoreCase))
+                                s.ReviewNote[t]="Possible example/test data in source or documentation; verify before acting.";
+                        }
                         if(!CountAll) { s.Done[t]=true; break; }
                     }
                 } catch(RegexMatchTimeoutException) { Partial(s,s.Label,"Regex timeout for "+names[t]+"; other rules continue."); }
             }
             if(eof || s.AllDone) break;
+            int lastBreak=text.LastIndexOf('\n',limit-1);
+            columnBase=lastBreak>=0?limit-lastBreak:columnBase+limit;
             offset+=limit; lineBase+=Newlines(text,limit); carry=len-limit; Array.Copy(buf,limit,buf,0,carry);
             foreach(HashSet<long> set in seen) set.RemoveWhere(i=>i<offset);
         }
@@ -536,7 +580,7 @@ public sealed class Scanner {
         return true;
     }
     static string Mask(string value,string type) {
-        if(type=="Address" || type=="DOB") return "[redacted]";
+        if(type=="Address" || type=="DOB") return Regex.Replace(value,"[0-9]","#");
         if(type=="Email") return "***@***";
         char[] c=value.ToCharArray(); int seen=0; for(int i=c.Length-1;i>=0;i--) if(Char.IsLetterOrDigit(c[i]) && ++seen>4) c[i]='*'; return new string(c);
     }
@@ -551,6 +595,23 @@ function Write-PiiMessage {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $Message" -ForegroundColor $Color
 }
 function Safe-Display([string]$Text) { [regex]::Replace($Text, '[\p{Cc}\p{Cf}]', ' ') }
+function Write-PiiSection([string]$Title, [ConsoleColor]$Color = 'Cyan') {
+    Write-Host ''; Write-PiiMessage $Title $Color
+}
+function Write-PiiField([string]$Label, $Value, [ConsoleColor]$Color = 'Gray') {
+    $prefix='    {0,-18}: ' -f $Label
+    $text=Safe-Display ([string]$Value)
+    $width=100
+    try { if ($Host.UI.RawUI.WindowSize.Width -ge 60) { $width=[Math]::Min(120,$Host.UI.RawUI.WindowSize.Width) } } catch { }
+    $available=$width-$prefix.Length-1
+    while ($text.Length -gt $available) {
+        $cut=$text.LastIndexOf(' ',$available)
+        if ($cut -lt ($available/2)) { $cut=$available }
+        Write-Host ($prefix+$text.Substring(0,$cut)) -ForegroundColor $Color
+        $text=$text.Substring($cut).TrimStart(); $prefix=' '*$prefix.Length
+    }
+    Write-Host ($prefix+$text) -ForegroundColor $Color
+}
 $discoveryErrors = New-Object 'System.Collections.Generic.List[object]'
 function Add-DiscoveryError([string]$Target, [string]$Message) {
     $discoveryErrors.Add([pscustomobject]@{ Timestamp=Get-Date; Path=$Target; Kind='Discovery'; Message=$Message })
@@ -717,12 +778,21 @@ function Receive-Findings {
             Timestamp=$f.Timestamp.ToString('yyyy-MM-dd HH:mm:ss'); Type=$f.Type; Confidence=$f.Confidence
             File=$f.File; Location=$f.Location; Hits=$f.Hits; Sample=$f.Sample
             SizeKB=[Math]::Round($f.Size/1KB,1); LastModified=$f.Modified.ToString('o'); ScanStatus=$f.ScanStatus
+            Line=$f.Line; Column=$f.Column; MatchLength=$f.MatchLength; Reason=$f.Reason; ReviewNote=$f.ReviewNote; Context=$f.Context
         }
         $live.Count++; [void]$live.Files.Add($o.File)
         if (-not $live.ByType.ContainsKey($o.Type)) { $live.ByType[$o.Type]=0 }; $live.ByType[$o.Type]++
         Write-CsvRow $findingWriter $o
         if (-not $Quiet) {
-            Write-PiiMessage ("[{0}/{1}] {2} | {3} | {4}{5}" -f $o.Type,$o.Confidence,(Safe-Display $o.File),(Safe-Display $o.Location),(Safe-Display $o.Sample),$(if($CountAll){" | hits=$($o.Hits)"})) Yellow
+            Write-PiiSection ("FINDING {0} - {1} ({2} confidence)" -f $live.Count,$o.Type,$o.Confidence) Yellow
+            Write-PiiField 'File' $o.File
+            Write-PiiField 'Location' $o.Location
+            Write-PiiField $(if($ShowValues){'Match'}else{'Match (masked)'}) ('"'+$o.Sample+'"') Yellow
+            Write-PiiField 'Why it matched' $o.Reason
+            if ($CountAll) { Write-PiiField 'Occurrences' "$($o.Hits) (first match shown)" }
+            if ($o.ReviewNote) { Write-PiiField 'Review note' $o.ReviewNote Cyan }
+            if ($ShowValues -and $o.Context) { Write-PiiField 'Context' $o.Context }
+            if ($o.ScanStatus -eq 'Partial') { Write-PiiField 'Coverage' 'Partial; see scan errors.' Yellow }
         }
         if ($PassThru) { $o }
     }
@@ -732,13 +802,16 @@ $progressId = Get-Random -Minimum 10000 -Maximum 2000000000
 $watch=[Diagnostics.Stopwatch]::StartNew(); $finished=$false; $fatal=$null; $started=$false
 try {
     if ($reportPath) {
-        $findingWriter=Open-CsvWriter $reportPath @('Timestamp','Type','Confidence','File','Location','Hits','Sample','SizeKB','LastModified','ScanStatus')
+        $findingWriter=Open-CsvWriter $reportPath @('Timestamp','Type','Confidence','File','Location','Hits','Sample','SizeKB','LastModified','ScanStatus','Line','Column','MatchLength','Reason','ReviewNote','Context')
         $errorWriter=Open-CsvWriter $errorPath @('Timestamp','Kind','Path','Message')
     }
-    if ($ShowValues) { Write-PiiMessage '[WARN] Raw samples enabled; console and CSV will contain sensitive values.' Yellow }
+    if ($ShowValues) { Write-PiiMessage '[WARN] Exact matches and nearby context will appear in console/CSV output.' Yellow }
     if ($IncludeCloudOnly) { Write-PiiMessage '[WARN] Cloud-only files may be downloaded by their sync provider.' Yellow }
-    Write-PiiMessage "Starting scan: $($roots.Count) input(s), $Threads workers; types: $($Type -join ', ')." Cyan
-    Write-PiiMessage 'Ctrl+C requests cancellation. When enabled, CSV findings are written as they arrive.' DarkGray
+    Write-PiiSection 'STARTING PII SCAN'
+    Write-PiiField 'Inputs / workers' "$($roots.Count) / $Threads"
+    Write-PiiField 'Checks' ($Type -join ', ')
+    Write-PiiField 'Match display' $(if($ShowValues){'Exact values and context'}else{'Partially masked. Use -ShowValues for exact values and context.'})
+    Write-PiiField 'Controls' 'Ctrl+C requests cancellation.' DarkGray
     $scanner.Start($roots.ToArray()); $started=$true
     do {
         Start-Sleep -Milliseconds 200; Receive-Findings
@@ -756,21 +829,47 @@ finally {
             catch { $fatal=$_.Exception.Message; Write-PiiMessage "[ERROR] Final result delivery failed: $(Safe-Display $fatal)" Red }
         }
         if (-not $NoProgress) { Write-Progress -Id $progressId -Activity 'PII discovery' -Completed }
-        Write-PiiMessage ("Scan {0} in {1:hh\:mm\:ss}." -f $(if($finished){'finished'}else{'interrupted or failed; partial results'}),$watch.Elapsed) Cyan
-        Write-PiiMessage ("Files: {0:N0} seen | {1:N0} attempted | {2:N0} completed | {3:N0} partial | {4:N0} failed." -f $scanner.Get('Seen'),$scanner.Get('Attempted'),$scanner.Get('Files'),$scanner.Get('Partial'),$scanner.Get('Failed'))
-        Write-PiiMessage ("Findings: {0:N0} type/file records across {1:N0} files. Counts are {2}." -f $live.Count,$live.Files.Count,$(if($CountAll){'occurrences in examined content'}else{'first match per type/file'}))
-        foreach ($name in @($live.ByType.Keys | Sort-Object)) { Write-PiiMessage ("  {0,-16} {1,8:N0} file(s)" -f $name,$live.ByType[$name]) }
-        Write-PiiMessage ("Skipped: extension={0}, unsupported={1}, binary={2}, size/limits={3}, cloud={4}, links={5}, exclusions={6}, duplicates={7}, empty={8}." -f $scanner.Get('SkipExt'),$scanner.Get('SkipUnsupported'),$scanner.Get('SkipBinary'),$scanner.Get('SkipSize'),$scanner.Get('SkipCloud'),$scanner.Get('SkipLink'),$scanner.Get('SkipExcluded'),$scanner.Get('SkipDuplicate'),$scanner.Get('SkipEmpty'))
-        Write-PiiMessage 'Skip totals include directories and container members; an excluded directory can contain many files.' DarkGray
+        Write-PiiSection 'SCAN SUMMARY'
+        Write-PiiField 'Status' $(if($finished -and -not $fatal){'Finished'}else{'Interrupted or failed; partial results'})
+        Write-PiiField 'Elapsed' ('{0:hh\:mm\:ss}' -f $watch.Elapsed)
+        Write-PiiField 'Files discovered' ('{0:N0}' -f $scanner.Get('Seen'))
+        Write-PiiField 'Read attempts' ('{0:N0}' -f $scanner.Get('Attempted'))
+        Write-PiiField 'Searches complete' ('{0:N0}' -f $scanner.Get('Files'))
+        Write-PiiField 'Partial / failed' ('{0:N0} / {1:N0}' -f $scanner.Get('Partial'),$scanner.Get('Failed'))
+        Write-PiiField 'Findings' ('{0:N0} across {1:N0} file(s)' -f $live.Count,$live.Files.Count)
+        foreach ($name in @($live.ByType.Keys | Sort-Object)) { Write-PiiField $name ("$($live.ByType[$name]) file(s)") }
+        Write-PiiField 'Counting mode' $(if($CountAll){'All occurrences; first sample per type/file shown.'}else{'First match per type/file.'}) DarkGray
+        $skipLabels=[ordered]@{SkipExt='Extension filter';SkipUnsupported='Unsupported';SkipBinary='Binary content';SkipSize='Size/depth limits';SkipCloud='Cloud-only';SkipLink='Links';SkipExcluded='Exclusions';SkipDuplicate='Duplicates';SkipEmpty='Empty';SkipMetadata='Recycle metadata'}
+        $hasSkips=$false
+        foreach ($key in $skipLabels.Keys) {
+            $count=$scanner.Get($key)
+            if ($count -gt 0) {
+                if (-not $hasSkips) { Write-PiiSection 'SKIPPED ITEMS'; $hasSkips=$true }
+                Write-PiiField $skipLabels[$key] ('{0:N0}' -f $count)
+            }
+        }
+        if ($hasSkips) { Write-PiiField 'Counting note' 'Includes folders and archive members; these counts do not add up to files discovered.' DarkGray }
         $errors=@($discoveryErrors.ToArray())+@($scanner.GetErrors())
-        Write-PiiMessage ("Errors: {0:N0} scanning; {1:N0} discovery. Completed searches can stop early once all requested types match." -f $scanner.Get('Errors'),$discoveryErrors.Count) $(if($errors.Count){'Yellow'}else{'Gray'})
+        if ($errors.Count -gt 0) {
+            Write-PiiSection ("SCAN ERRORS - {0:N0} scan, {1:N0} discovery" -f $scanner.Get('Errors'),$discoveryErrors.Count) Yellow
+        } else { Write-PiiMessage 'Scan errors: none.' DarkGray }
         try { foreach ($e in $errors) { Write-CsvRow $errorWriter ([pscustomobject][ordered]@{Timestamp=$e.Timestamp.ToString('yyyy-MM-dd HH:mm:ss');Kind=$e.Kind;Path=$e.Path;Message=$e.Message}) } }
         catch { $fatal=$_.Exception.Message; Write-PiiMessage "[ERROR] Error CSV write failed: $(Safe-Display $fatal)" Red }
-        foreach ($e in @($errors | Select-Object -First 5)) { Write-PiiMessage ("[WARN] {0}: {1} - {2}" -f $e.Kind,(Safe-Display $e.Path),(Safe-Display $e.Message)) Yellow }
+        foreach ($e in @($errors | Select-Object -First 5)) {
+            Write-PiiField 'File / location' $e.Path
+            Write-PiiField 'Error' $e.Kind Yellow
+            Write-PiiField 'Detail' $e.Message
+            Write-Host ''
+        }
+        if ($errors.Count -gt 5) { Write-PiiMessage 'Only the first five error details are displayed; use -OutputPath for the error CSV.' DarkGray }
         if ($scanner.Get('Errors') -gt 5000) { Write-PiiMessage 'Error details are capped at 5,000 scan errors; totals include the rest.' Yellow }
         if ($scanner.IsRunning) { Write-PiiMessage '[WARN] Some private workers are still waiting on I/O; final coverage/results are incomplete.' Yellow }
         if ($live.Count -eq 0) { Write-PiiMessage 'No matches reported in the examined content. Review skips and errors before interpreting this result.' Cyan }
-        if ($reportPath -and $findingWriter) { Write-PiiMessage "Report paths: $reportPath ; $errorPath" Cyan }
+        if ($reportPath -and $findingWriter) {
+            Write-PiiSection 'REPORT FILES'
+            Write-PiiField 'Findings CSV' $reportPath
+            Write-PiiField 'Errors CSV' $errorPath
+        }
     } finally {
         try { if ($findingWriter) { $findingWriter.Dispose() } }
         catch { $fatal=$_.Exception.Message; Write-PiiMessage "[ERROR] Findings CSV close failed: $(Safe-Display $fatal)" Red }

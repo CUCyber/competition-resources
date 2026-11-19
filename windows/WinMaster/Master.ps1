@@ -13,24 +13,24 @@
 # - Streams.exe
 #
 # Create new Active Directory hardening script
+# - Create GPOs (patch nosferatu, disable rdp shadowing??)
 #
 # Create a database/webserver backup script (also generic system files)
 # - Detect and backup any databases and webservers on the machine
 #
 # Script to disable uneeded users (interactive)
 
-# Implement nosferatu patch: insert DWORD key with value 1 at Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa
-# Disable RDP shadowing
-# Disable write permissions for WinMaster directory?
+# Disable write permissions for WinMaster directory?  YES DO THIS
 # Prevent failures if system does not have internet access
 
+# check for drive shares
 
 # Detection only scripts (for now, some will be updated):
-# - Check-Services2
+# - Check-Services2 (COMPLETE)
 # - Find-PII-Light (COMPLETE)
-# - Find-PII-Heavy
+# - Find-PII-Heavy (COMPLETE)
 # - Get-Report (COMPLETE)
-# - FindWindowsTamper
+# - FindWindowsTamper (COMPLETE)
 
 # Detection and Remediation scripts:
 # - CheckFirewall5 (COMPLETE)
@@ -68,9 +68,11 @@ function Test-LsaProtected {
 
 
 # ======= BEGIN STAGE 1: Script Validation =======
-Write-Host "[$(Get-Date -Format "HH:mm:ss")] Starting Stage 1..."
+Set-Location -LiteralPath $PSScriptRoot -ErrorAction Stop
 
-Set-Location "C:\WinMaster"
+$sigcheck = Join-Path $PSScriptRoot 'SysinternalsSuite\sigcheck.exe'
+
+Write-Host "[$(Get-Date -Format "HH:mm:ss")] Starting Stage 1..."
 
 # Instantiate variables & create directories
 if(-not (Test-Path -Path ".\WinMaster_Backups" -PathType Container)) {
@@ -101,13 +103,13 @@ if(-not (Test-Path -Path ".\OLD-WinMaster_Evidence" -PathType Container)) {
         exit 1
     }
 } else {
-    # Move any evidence from previous runs into C:\WinMaster\OLD-WinMaster_Evidence
-    $evidenceItems = Get-ChildItem -Path "C:\WinMaster\WinMaster_Evidence" -File
-    $oldEvidenceItems = Get-ChildItem -Path "C:\WinMaster\OLD-WinMaster_Evidence"
+    # Move any evidence from previous runs into .\WinMaster\OLD-WinMaster_Evidence
+    $evidenceItems = Get-ChildItem -Path ".\WinMaster_Evidence" -File
+    $oldEvidenceItems = Get-ChildItem -Path ".\OLD-WinMaster_Evidence"
     if($oldEvidenceItems.Count -eq 0) {
             if($evidenceItems.Count -gt 0) {
                 foreach($evidenceItem in $evidenceItems) {
-                    Move-Item -Path $evidenceItem.FullName -Destination "C:\WinMaster\OLD-WinMaster_Evidence"
+                    Move-Item -Path $evidenceItem.FullName -Destination ".\OLD-WinMaster_Evidence"
                 }
             } 
     }
@@ -121,13 +123,17 @@ $scriptList = @(
     ".\Get-Report.ps1",
     ".\Check-Services2.ps1",
     ".\Find-PII-Light.ps1",
+    ".\Find-PII-Heavy.ps1",
     ".\Find-WindowsTamper.ps1",
     ".\CheckFirewall5.ps1",
     ".\Find-HiddenServices.ps1",
     ".\Check-ScheduledTasks.ps1",
     ".\Install-Sysinternals.ps1",
     ".\rmbin2.ps1",
-    ".\Find-IISWebshells.ps1"
+    ".\Find-IISWebshells.ps1",
+    ".\Reset-Passwords.ps1",
+    ".\SysinternalsSuite\PsExec64.exe",
+    ".\SysinternalsSuite\sigcheck64.exe"
 )
 
 # Check that each script exists in working directory
@@ -186,118 +192,118 @@ $suspiciousFirewallRulesFound = $false
 # Create hash table to keep track of each script's process
 $processes = @{}
 
-Write-Host -ForegroundColor Cyan "Running ProfileCheck1.ps1, review log in .\WinMaster_Evidence\ProfileCheck1.txt"
+Write-Host -ForegroundColor Cyan "Running ProfileCheck1.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-ProfileCheck1.txt"
 $processes["ProfileCheck1"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\ProfileCheck1.ps1' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\ProfileCheck1.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-ProfileCheck1.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-ProfileCheck1.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-ProfileCheck1.txt" `
     -PassThru
 
 if($LASTEXITCODE -eq 0) {
     $profileDetected = $true
 }
 
-Write-Host -ForegroundColor Cyan "Running Disable-RunKeys.ps1, review log in .\WinMaster_Evidence\Disable-RunKeys.txt"
+Write-Host -ForegroundColor Cyan "Running Disable-RunKeys.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Disable-RunKeys.txt"
 $processes["Disable-RunKeys"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\Disable-RunKeys.ps1' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\Disable-RunKeys.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Disable-RunKeys.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Disable-RunKeys.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Disable-RunKeys.txt" `
     -PassThru
 
-Write-Host -ForegroundColor Cyan "Running Get-Report.ps1, saving report to .\WinMaster_Evidence\report.txt"
+Write-Host -ForegroundColor Cyan "Running Get-Report.ps1, saving report to .\WinMaster_Evidence\$env:HOSTNAME-report.txt"
 $processes["Get-Report"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\Get-Report.ps1' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Get-Report.txt' `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Get-Report.txt" `
     -PassThru
 
-Write-Host -ForegroundColor Cyan "Running Check-Services2.ps1, review log in .\WinMaster_Evidence\Check-Services2.txt"
+Write-Host -ForegroundColor Cyan "Running Check-Services2.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Check-Services2.txt"
 $processes["Check-Services"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\Check-Services2.ps1', '-ExcludeFile', '.\allowlist.txt' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\Check-Services2.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Check-Services2.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Check-Services2.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Check-Services2.txt" `
     -PassThru
 
-Write-Host -ForegroundColor Cyan "Running Find-PII-Light.ps1, review log in .\WinMaster_Evidence\Find-PII-Light.txt"
+Write-Host -ForegroundColor Cyan "Running Find-PII-Light.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Find-PII-Light.txt"
 $processes["Find-PII-Light"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\Find-PII-Light.ps1' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\Find-PII-Light.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-PII-Light.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Find-PII-Light.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Find-PII-Light.txt" `
     -PassThru
 
-Write-Host -ForegroundColor Cyan "Running Find-WindowsTamper.ps1, review log in .\WinMaster_Evidence\Find-WindowsTamper.txt"
+Write-Host -ForegroundColor Cyan "Running Find-WindowsTamper.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Find-WindowsTamper.txt"
 $processes["Check-WindowsTamper"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\Find-WindowsTamper.ps1', '-OutputPath', '.\WinMaster_Evidence', '-DeepScan', '-ShowInfo', '-DeepVerify', '-NoExport' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\Find-WindowsTamper.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-WindowsTamper.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Find-WindowsTamper.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Find-WindowsTamper.txt" `
     -PassThru
 
 Write-Host -ForegroundColor Cyan "Running CheckFirewall5.ps1, review log in .\WinMaster_Evidence\CheckFirewall5.txt"
 $processes["CheckFirewall5"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\CheckFirewall5.ps1' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\CheckFirewall5.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-CheckFirewall5.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-CheckFirewall5.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-CheckFirewall5.txt" `
     -PassThru
 
-#Write-Host -ForegroundColor Cyan "Running Find-HiddenServices.ps1, review log in .\WinMaster_Evidence\Find-HiddenServices.txt"
+#Write-Host -ForegroundColor Cyan "Running Find-HiddenServices.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Find-HiddenServices.txt"
 #$processes["Find-HiddenServices"] = Start-Process powershell.exe `
 #    -WindowStyle Hidden `
 #    -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass','-actionParam', '2', '-File', '.\Find-HiddenServices.ps1' `
-#    -RedirectStandardOutput '.\WinMaster_Evidence\Find-HiddenServices.txt' `
-#    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-HiddenServices.txt' `
+#    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Find-HiddenServices.txt" `
+#    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Find-HiddenServices.txt" `
 #    -PassThru
 
-Write-Host -ForegroundColor Cyan "Running Check-ScheduledTasks.ps1, review log in .\WinMaster_Evidence\Check-ScheduledTasks.txt"
+Write-Host -ForegroundColor Cyan "Running Check-ScheduledTasks.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Check-ScheduledTasks.txt"
 $processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
     -WindowStyle Hidden `
     -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\Check-ScheduledTasks.ps1' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\Check-ScheduledTasks.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Check-ScheduledTasks.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Check-ScheduledTasks.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Check-ScheduledTasks.txt" `
     -PassThru
 
 if($LASTEXITCODE -eq 0) {
     $suspiciousScheduledTasksFound = $true
 }
 
-#Write-Host -ForegroundColor Cyan "Running Find-IISWebshells.ps1, review log in .\WinMaster_Evidence\Find-IISWebshells.txt"
+#Write-Host -ForegroundColor Cyan "Running Find-IISWebshells.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Find-IISWebshells.txt"
 #$processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
 #    -WindowStyle Hidden `
 #    -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Action', 'Review', '-File', '.\Find-IISWebshells.ps1' `
-#    -RedirectStandardOutput '.\WinMaster_Evidence\Find-IISWebshells.txt' `
-#    -RedirectStandardError '.\WinMaster_Evidence\ERROR-Find-IISWebshells.txt' `
+#    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-Find-IISWebshells.txt" `
+#    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-Find-IISWebshells.txt" `
 #    -PassThru
 
 # Non-script miscellaneous fixes
 Write-Host -ForegroundColor Cyan "Checking common Windows Folders with sigcheck.exe"
-$processes["sigcheck-windows"] = Start-Process C:\SysinternalsSuite\sigcheck.exe `
+$processes["sigcheck-windows"] = Start-Process -FilePath $sigcheck `
     -WindowStyle Hidden `
     -ArgumentList '-e', '-u', '-r', '-accepteula', 'C:\Windows' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\sigcheck-windows.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-sigcheck-windows.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-sigcheck-windows.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-sigcheck-windows.txt" `
     -PassThru
-$processes["sigcheck-system"] = Start-Process C:\SysinternalsSuite\sigcheck.exe `
+$processes["sigcheck-system"] = Start-Process -FilePath $sigcheck `
     -WindowStyle Hidden `
     -ArgumentList '-e', '-u', '-r', '-accepteula', 'C:\Windows\System' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\sigcheck-system.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-sigcheck-system.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-sigcheck-system.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-sigcheck-system.txt" `
     -PassThru
-$processes["sigcheck-system32"] = Start-Process C:\SysinternalsSuite\sigcheck.exe `
+$processes["sigcheck-system32"] = Start-Process -FilePath $sigcheck `
     -WindowStyle Hidden `
     -ArgumentList '-e', '-u', '-r', '-accepteula', 'C:\Windows\System32' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\sigcheck-system32.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-sigcheck-system32.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-sigcheck-system32.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-sigcheck-system32.txt" `
     -PassThru
-$processes["sigcheck-drivers"] = Start-Process C:\SysinternalsSuite\sigcheck.exe `
+$processes["sigcheck-drivers"] = Start-Process -FilePath $sigcheck `
     -WindowStyle Hidden `
     -ArgumentList '-e', '-u', '-r', '-accepteula', 'C:\Windows\System32\Drivers' `
-    -RedirectStandardOutput '.\WinMaster_Evidence\sigcheck-drivers.txt' `
-    -RedirectStandardError '.\WinMaster_Evidence\ERROR-sigcheck-drivers.txt' `
+    -RedirectStandardOutput ".\WinMaster_Evidence\$env:HOSTNAME-sigcheck-drivers.txt" `
+    -RedirectStandardError ".\WinMaster_Evidence\ERROR-$env:HOSTNAME-sigcheck-drivers.txt" `
     -PassThru
 
 # ======= END STAGE 3: Start Non-Interactive Scripts =======
@@ -479,6 +485,15 @@ if($doRemediation -eq 'y') {
     }
     catch {
         Write-Host -ForegroundColor Red "Failed to patch: Nosferatu"
+    }
+
+    # Disable RDP shadowing
+    try {
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "Shadow" -Value 0 -Type DWord
+        Write-Host -ForegroundColor Green "Disabled: RDP Shadowing"
+    }
+    catch {
+        Write-Host -ForegroundColor Red "Failed to disable: RDP Shadowing"
     }
 
 
