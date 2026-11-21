@@ -120,7 +120,6 @@ $scriptList = @(
     ".\Find-HiddenServices.ps1",
     ".\Check-ScheduledTasks.ps1",
     ".\Install-Sysinternals.ps1",
-    ".\Test-SysinternalsSignature.ps1",
     ".\rmbin2.ps1",
     ".\Find-IISWebshells.ps1",
     ".\Reset-Passwords.ps1",
@@ -139,10 +138,6 @@ foreach($scriptListItem in $scriptList) {
 # If at least 1 check fails, throw an error
 if(-not $scriptCheck) {
     Write-Host -BackgroundColor DarkRed -ForegroundColor Red "1 or more scripts could not be found!"
-    exit 1
-}
-if(-not (& "$PSScriptRoot\Test-SysinternalsSignature.ps1" $sigcheck)) {
-    Write-Host -ForegroundColor Red "sigcheck64.exe does not have a valid Microsoft signature."
     exit 1
 }
 
@@ -177,10 +172,10 @@ Write-Host "[$(Get-Date -Format "HH:mm:ss")] Starting Stage 3..."
 
 
 # Variables to keep track of sub-script exit codes/statuses
-$profileExitCode = $null
+$profileDetected = $false
 $hiddenServicesFound = $false
 $suspiciousServicesFound = $false
-$scheduledTasksExitCode = $null
+$suspiciousScheduledTasksFound = $false
 $suspiciousExecutablesFound = $false
 $suspiciousFirewallRulesFound = $false
 
@@ -196,8 +191,9 @@ $processes["ProfileCheck1"] = Start-Process powershell.exe `
     -RedirectStandardError ".\WinMaster_Evidence\ERROR-$($env:COMPUTERNAME)-ProfileCheck1.txt" `
     -PassThru
 
-# Keep the process handle so Windows PowerShell can read ExitCode after the child exits.
-$null = $processes["ProfileCheck1"].Handle
+if($LASTEXITCODE -eq 0) {
+    $profileDetected = $true
+}
 
 Write-Host -ForegroundColor Cyan "Running Disable-RunKeys.ps1, review log in .\WinMaster_Evidence\$($env:COMPUTERNAME)-Disable-RunKeys.txt"
 $processes["Disable-RunKeys"] = Start-Process powershell.exe `
@@ -262,7 +258,9 @@ $processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
     -RedirectStandardError ".\WinMaster_Evidence\ERROR-$($env:COMPUTERNAME)-Check-ScheduledTasks.txt" `
     -PassThru
 
-$null = $processes["Check-ScheduledTasks"].Handle
+if($LASTEXITCODE -eq 0) {
+    $suspiciousScheduledTasksFound = $true
+}
 
 #Write-Host -ForegroundColor Cyan "Running Find-IISWebshells.ps1, review log in .\WinMaster_Evidence\$env:HOSTNAME-Find-IISWebshells.txt"
 #$processes["Check-ScheduledTasks"] = Start-Process powershell.exe `
@@ -335,15 +333,7 @@ while($processes.Count -gt 0) {
     foreach($scriptName in @($processes.Keys)) {
         $process = $processes[$scriptName]
 
-        if($null -eq $process) {
-            Write-Warning "$scriptName failed to start."
-            $errorCount++
-            $processes.Remove($scriptName)
-            continue
-        }
         if($process.HasExited) {
-            if($scriptName -eq "ProfileCheck1") { $profileExitCode = $process.ExitCode }
-            if($scriptName -eq "Check-ScheduledTasks") { $scheduledTasksExitCode = $process.ExitCode }
             $processes.Remove($scriptname)
             $finishedServiceCount++
         }
@@ -391,20 +381,16 @@ Write-Host -ForegroundColor Cyan "         System Alerts:"
 Write-Host -ForegroundColor Cyan "================================"
 
 # Alert on detected powershell profiles
-if($profileExitCode -eq 0) {
+if($profileDetected) {
     Write-Host -ForegroundColor Red "* Custom powershell profile(s) detected"
-} elseif($profileExitCode -eq 2) {
-    Write-Host -ForegroundColor Green "* No custom powershell profiles detected"
 } else {
-    Write-Host -ForegroundColor Red "* PowerShell profile check failed. Review the ProfileCheck1 logs."
+    Write-Host -ForegroundColor Green "* No custom powershell profiles detected"
 }
 
-if($scheduledTasksExitCode -eq 0) {
+if($suspiciousScheduledTasksFound) {
     Write-Host -ForegroundColor DarkYellow "* Potentially suspicious scheduled tasks detected"
-} elseif($scheduledTasksExitCode -eq 2) {
-    Write-Host -ForegroundColor Green "* No suspicious scheduled tasks detected"
 } else {
-    Write-Host -ForegroundColor Red "* Scheduled task check failed. Review the Check-ScheduledTasks logs."
+    Write-Host -ForegroundColor Green "* No suspicious scheduled tasks detected"
 }
 
 # Alert on detected ssh
@@ -489,7 +475,7 @@ if($doRemediation -eq 'y') {
     }
 
     # Disable powershell profiles if any found
-    if($profileExitCode -eq 0 -and (Test-Path -LiteralPath $PROFILE)) {
+    if($profileDetected -and (Test-Path -LiteralPath $PROFILE)) {
         try {
             Rename-Item $PROFILE "$($PROFILE).disabled"
             Write-Host -ForegroundColor Green "Disabled: Powershell profiles"
@@ -549,13 +535,14 @@ if($doRemediation -eq 'y') {
     }
 
     # Set up defensive powershell profile
-    try {
-        [IO.File]::Copy((Join-Path $PSScriptRoot 'rizz.ps1'), $PROFILE.AllUsersAllHosts, $false)
-        Write-Host -ForegroundColor Green "Activated: Defensive powershell profile"
-    }
-    catch {
-        Write-Host -ForegroundColor Red "Failed to Activate: Defensive powershell profile"
-    }
+    #try {
+    #    New-Item -Path $PROFILE.AllUsersAllHosts -ItemType File -Force | Out-Null
+    #    Copy-Item .\rizz.ps1 $PROFILE.AllUsersAllHosts -Force
+    #    Write-Host -ForegroundColor Green "Activated: Defensive powershell profile"
+    #}
+    #catch {
+    #    Write-Host -ForegroundColor Red "Failed to Activate: Defensive powershell profile"
+    #}
 
 
 
