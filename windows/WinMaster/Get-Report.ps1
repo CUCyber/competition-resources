@@ -2,7 +2,8 @@
 # Author: Dylan Harvey - Modified by BlueNitrobotX
 # Gathers information regarding the machine and its services. Much more detailed than Info.ps1
 
-$outFile = ".\WinMaster_Evidence\report.txt"
+$outFile = ".\WinMaster_Evidence\$($env:COMPUTERNAME)-report.txt"
+New-Item -Path (Split-Path -Parent $outFile) -ItemType Directory -Force -ErrorAction Stop | Out-Null
 
 # Gather System Info
 $hostname = $env:COMPUTERNAME
@@ -10,7 +11,11 @@ $domainRole = (Get-WmiObject Win32_ComputerSystem).DomainRole
 $domainRoleText = @("Standalone Workstation", "Member Workstation", "Standalone Server", "Member Server", "Backup Domain Controller", "Primary Domain Controller")[$domainRole]
 $os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
 $uptime = (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes, Seconds
-$installedRoles = Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object Name, DisplayName
+$installedRoles = if (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue) {
+    Get-WindowsFeature | Where-Object Installed | Select-Object -ExpandProperty DisplayName
+} else {
+    Get-CimInstance Win32_OptionalFeature -Filter 'InstallState = 1' | Select-Object -ExpandProperty Caption
+}
 $runningServices = Get-WmiObject Win32_Service | Where-Object { $_.State -eq "Running" } | Select-Object Name, DisplayName, ProcessId, PathName
 $openPorts = Get-NetTCPConnection | Where-Object { $_.State -eq "Listen" } | Select-Object LocalAddress, LocalPort, OwningProcess, @{Name="ExecutablePath"; Expression={(Get-WmiObject Win32_Process -Filter "ProcessId=$($_.OwningProcess)" -ErrorAction SilentlyContinue).ExecutablePath}}
 $establishedConnections = Get-NetTCPConnection | Where-Object { $_.State -match "^Established" } | Select-Object LocalAddress, LocalPort, OwningProcess, @{Name="ExecutablePath"; Expression={(Get-WmiObject Win32_Process -Filter "ProcessId=$($_.OwningProcess)" -ErrorAction SilentlyContinue).ExecutablePath}}
@@ -27,7 +32,8 @@ $sharedFolders = Get-SmbShare | Select-Object Name, Path, Description
 
 # Group Policy Rules
 $gpRemoteDesktop = (Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server").fDenyTSConnections -eq 0
-$gpNLA = Get-WmiObject -class Win32_TSGeneralSetting -Namespace root\cimv2\terminalservices | Select-Object UserAuthenticationRequired
+$gpNLA = Get-WmiObject -Class Win32_TSGeneralSetting -Namespace root\cimv2\terminalservices -Filter "TerminalName='RDP-Tcp'" -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty UserAuthenticationRequired
 
 $report = @"
 === Machine Info === 
@@ -37,7 +43,7 @@ OS Information: $($os.Caption) ($($os.Version), $($os.OSArchitecture))
 Uptime: $($uptime.Days)d, $($uptime.Hours)h:$($uptime.Minutes)m:$($uptime.Seconds)s
 
 === Installed Roles & Features === 
-$($installedRoles.DisplayName -join "`n")
+$($installedRoles -join "`n")
 
 === Running Services ===
 $($runningServices.DisplayName -join "`n")
@@ -63,7 +69,7 @@ $($sharedFolders | Out-String)
 
 === Group Policy ===
 Remote Desktop: $(if ($gpRemoteDesktop -eq $true) {"Enabled"} else {"Disabled"})
-NLA: $(if ($gpNLA -eq $true) {"Enabled"} else {"Disabled"})
+NLA: $(if ($gpNLA -eq 1) {"Enabled"} elseif ($gpNLA -eq 0) {"Disabled"} else {"Unknown"})
 "@
 
 $report | Out-File $outFile

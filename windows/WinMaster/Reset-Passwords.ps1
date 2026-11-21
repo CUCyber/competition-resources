@@ -93,6 +93,7 @@ function Get-UserResponsePassword {
 # Main
 
 Write-Host "`n====== Resetting Passwords ======`n"
+Write-Host -ForegroundColor Cyan "[$(Get-Date -Format "HH:mm:ss")] Starting password reset...`n"
 
 $detectedDC = (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
 if ($Mode -eq "Auto") {

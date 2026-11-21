@@ -34,10 +34,10 @@
     Also emit the result objects to the pipeline, so they can be filtered or exported by the caller.
 
 .EXAMPLE
-    .\Find-SuspiciousServices.ps1 -MinScore 1 -CsvPath C:\temp\services.csv
+    .\Check-Services2.ps1 -MinScore 1 -CsvPath C:\temp\services.csv
 
 .EXAMPLE
-    .\Find-SuspiciousServices.ps1 -ExcludeFile .\allowlist.txt -PassThru | Where-Object Score -ge 5
+    .\Check-Services2.ps1 -ExcludeFile .\allowlist.txt -PassThru | Where-Object Score -ge 5
 #>
 
 [CmdletBinding()]

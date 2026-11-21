@@ -51,11 +51,10 @@ foreach ($r in $allRules) {
     $profileMask = Get-ProfileMask $r.Profile
     $profileAny  = ($profileMask -eq 7)   # Domain + Private + Public
 
-    # Skip UWP/MSIX rules (Package != $null)
-    if ($r.Package -ne $null) { continue }
-
-    # Skip service-based rules
-    if ($r.Service -ne $null -and $r.Service -ne "") { continue }
+    # Only audit rules that apply to any package and any service.
+    if (-not $app -or ($app.Package -and $app.Package -ne 'Any')) { continue }
+    $serviceFilter = Get-NetFirewallServiceFilter -AssociatedNetFirewallRule $r
+    if (-not $serviceFilter -or ($serviceFilter.Service -and $serviceFilter.Service -ne 'Any')) { continue }
 
     # Skip rules with no real program path
     # (UWP apps show "System" or "Any")

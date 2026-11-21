@@ -41,22 +41,6 @@ foreach ($taskItem in $taskArr) {
     Write-Host " - Action: $($taskItem.Action)"
     Write-Host ""
 
-    try {
-        Stop-ScheduledTask -TaskName "$($taskItem.TaskName)"
-        Write-Host -ForegroundColor Green "[$(Get-Date -Format 'HH:mm:ss')] Stopped task: $($taskItem.TaskName)"
-    }
-    catch {
-        Write-Host -ForegroundColor Red "[$(Get-Date -Format 'HH:mm:ss')] Error stopping task: $($taskItem.TaskName)"
-    }
-
-    try {
-        Unregister-ScheduledTask -TaskName "$($taskItem.TaskName)" -Confirm:$false
-        Write-Host -ForegroundColor Green "[$(Get-Date -Format 'HH:mm:ss')] Unregistered task: $($taskItem.TaskName)"
-    }
-    catch {
-        Write-Host -ForegroundColor Red "[$(Get-Date -Format 'HH:mm:ss')] Error unregistering task: $($taskItem.TaskName)"
-    }
-
 }
 
 Write-Host ""

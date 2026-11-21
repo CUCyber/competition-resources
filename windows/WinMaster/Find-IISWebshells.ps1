@@ -27,13 +27,15 @@ param(
 $ErrorActionPreference = 'SilentlyContinue'
 $findings = New-Object System.Collections.Generic.List[object]
 
-function Add-Finding($Type, $Path, $Detail, $Severity = 'Medium') {
+function Add-Finding($Type, $Path, $Detail, $Severity = 'Medium', $ProcessId, $CreationTime) {
     $findings.Add([pscustomobject]@{
         Time     = Get-Date -Format s
         Type     = $Type
         Severity = $Severity
         Path     = $Path
         Detail   = $Detail
+        ProcessId = $ProcessId
+        CreationTime = $CreationTime
     })
 }
 
@@ -126,7 +128,7 @@ foreach ($root in $roots) {
 
     # Script files in upload/image/content dirs (should usually be static only)
     Get-ChildItem -Path $root -Recurse -File -Force -Include '*.aspx','*.ashx','*.asp','*.php' |
-        Where-Object { $_.DirectoryName -match '(?i)\\(uploads?|images?|img|media|files|content|assets|temp)\\' } |
+        Where-Object { $_.DirectoryName -match '(?i)\\(uploads?|images?|img|media|files|content|assets|temp)(?:\\|$)' } |
         ForEach-Object { Add-Finding 'ScriptInStaticDir' $_.FullName $_.DirectoryName 'Medium' }
 }
 
@@ -155,7 +157,7 @@ if ($w3wpPids) {
         Where-Object { $_.ParentProcessId -in $w3wpPids -and $_.Name -in $suspectChildren } |
         ForEach-Object {
             Add-Finding 'W3WPChildProcess' $_.ExecutablePath `
-                "PID=$($_.ProcessId) Parent=$($_.ParentProcessId) Cmd=$($_.CommandLine)" 'High'
+                "PID=$($_.ProcessId) Parent=$($_.ParentProcessId) Cmd=$($_.CommandLine)" 'High' $_.ProcessId $_.CreationDate
         }
 }
 
@@ -231,7 +233,7 @@ Write-Host ""
 
 
 # ---------------------------------------------------------------
-# Interactive review — enabled with -Action Review
+# Interactive review ï¿½ enabled with -Action Review
 # ---------------------------------------------------------------
 if($Action -eq 'Review') {
 
@@ -276,22 +278,18 @@ if($Action -eq 'Review') {
                 { $_ -in @('SuspiciousContent', 'DoubleExtension', 'ScriptInStaticDir') } {
 
                     # Delete the file
-                    Remove-Item -Path $finding.Path -Force -ErrorAction Stop
+                    Remove-Item -LiteralPath $finding.Path -Force -ErrorAction Stop
                 }
 
                 'W3WPChildProcess' {
-                    
-                    # Attempt to terminate the proces
-                    Stop-Process -id ($finding.ProcessId) -Force -ErrorAction Stop
-
-                    # Flag if termination fails
-                    if(Get-Process -id ($finding.ProcessId)) {
-                        Write-Host -ForegroundColor Red "Process (PID: $($finding.ProcessId)) could not be terminated."
+                    $child = Get-Process -Id $finding.ProcessId -ErrorAction Stop
+                    # Hold the process handle while verifying the PID still belongs to this finding.
+                    $null = $child.Handle
+                    $current = Get-CimInstance Win32_Process -Filter "ProcessId=$($finding.ProcessId)" -ErrorAction Stop
+                    if (-not $finding.CreationTime -or $current.CreationDate -ne $finding.CreationTime) {
+                        throw "PID $($finding.ProcessId) no longer identifies the detected process."
                     }
-
-                    # Delete the executable
-                    Remove-Item -Path $finding.Path -Force -ErrorAction Stop
-                    
+                    Stop-Process -InputObject $child -Force -ErrorAction Stop
                 }
 
                 default {

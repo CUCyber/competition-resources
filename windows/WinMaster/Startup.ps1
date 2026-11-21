@@ -3,13 +3,18 @@
 
 $pathSIS = Join-Path $PSScriptRoot 'SysinternalsSuite'
 $psexec = Join-Path $pathSIS 'PsExec64.exe'
+$sigcheck = Join-Path $pathSIS 'sigcheck64.exe'
 $installer = Join-Path $PSScriptRoot 'Install-Sysinternals.ps1'
 $pathM = Join-Path $PSScriptRoot 'Master.ps1'
 $installArgs = '-NoProfile -ExecutionPolicy Bypass -File "{0}" -pathParam "{1}"' -f $installer, $pathSIS
 
 # Check that Sysinternals is installed, and install it if needed.
-# Test for the executable we actually need, not just the folder, so a partial install is retried.
-if(-not (Test-Path -Path $psexec -PathType Leaf)) {
+function Test-SysinternalsInstalled {
+    $verify = Join-Path $PSScriptRoot 'Test-SysinternalsSignature.ps1'
+    if(-not (Test-Path -LiteralPath $verify -PathType Leaf)) { return $false }
+    (& $verify $psexec) -and (& $verify $sigcheck)
+}
+if(-not (Test-SysinternalsInstalled)) {
 
     Write-Host -ForegroundColor Cyan "Attempting to install Sysinternals"
 
@@ -37,7 +42,7 @@ if(-not (Test-Path -Path $psexec -PathType Leaf)) {
         exit 1
     }
 
-    if($inst.ExitCode -ne 0 -or -not (Test-Path -Path $psexec -PathType Leaf)) {
+    if($inst.ExitCode -ne 0 -or -not (Test-SysinternalsInstalled)) {
         Write-Host -ForegroundColor Red -BackgroundColor DarkRed "Failed to install Sysinternals (installer exit code: $($inst.ExitCode))"
         exit 1
     }

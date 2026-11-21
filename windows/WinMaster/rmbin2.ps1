@@ -20,7 +20,7 @@ foreach ($file in $files) {
     icacls $file /grant "${identity}:(F)" 2>&1 | Out-Null
 
     try {
-        Remove-Item $file -Force 2>&1 | Out-Null
+        Remove-Item -LiteralPath $file -Force -ErrorAction Stop
         Write-Host -ForegroundColor Green "[$(Get-Date -Format "HH:mm:ss")] Deleted: $file"
     }
     catch {

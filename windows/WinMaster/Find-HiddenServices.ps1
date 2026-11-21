@@ -73,7 +73,7 @@ $hiddenServices | ForEach-Object { Write-Host $_}
 # Removes these services on a case by case basis
 foreach ($service in $hiddenServices) {
 
-    if($actionParam -eq '1', '2', 'A', 'S') {
+    if($actionParam -in '1', '2', 'A', 'S') {
         $action = $actionParam
     } else {
         $action = Read-Host -Prompt "Action for service '$service' (1: Remove, 2: Keep, A: Remove ALL, S: Skip ALL)"
@@ -84,7 +84,8 @@ foreach ($service in $hiddenServices) {
         Write-Host "Removing service: $service"
         Stop-Service -ServiceName $service
         sc.exe delete $service | Out-Null
-        Write-Host "Service: $service successfully removed."
+        if ($LASTEXITCODE -eq 0) { Write-Host "Service: $service marked for deletion." }
+        else { Write-Warning "Failed to delete service '$service' (sc.exe exit $LASTEXITCODE)." }
     } 
     elseif ($action -eq "2") {
         Write-Host "Found hidden service: $service"
@@ -99,7 +100,8 @@ foreach ($service in $hiddenServices) {
             Write-Host "Removing service: $srv"
             Stop-Service -Name $srv -Force -ErrorAction SilentlyContinue
             sc.exe delete $srv | Out-Null
-            Write-Host "Service: $srv removed."
+            if ($LASTEXITCODE -eq 0) { Write-Host "Service: $srv marked for deletion." }
+            else { Write-Warning "Failed to delete service '$srv' (sc.exe exit $LASTEXITCODE)." }
         }
         break
     } 

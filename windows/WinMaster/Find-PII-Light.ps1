@@ -129,6 +129,7 @@ public sealed class PiiScanner
     private Regex[] rx;
     private HashSet<string> extSet, nameSet;
     private string[] excluded;
+    private HashSet<string> rootPaths;
 
     // ---------- Win32: tell real links from cloud reparse points ----------
     // OneDrive folders carry the ReparsePoint attribute but are NOT links; only symlinks/junctions are skipped.
@@ -191,11 +192,11 @@ public sealed class PiiScanner
         if (ExcludePaths != null) { foreach (string p in ExcludePaths) ex.Add(System.IO.Path.GetFullPath(p).TrimEnd(Sep)); }
         excluded = ex.ToArray();
 
-        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        rootPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string r in roots)
         {
             string p = System.IO.Path.GetFullPath(r);
-            if (Excluded(p.TrimEnd(Sep)) || !seen.Add(p)) continue;   // skip excluded and duplicate roots
+            if (Excluded(p.TrimEnd(Sep)) || !rootPaths.Add(p.TrimEnd(Sep))) continue;
             Interlocked.Increment(ref pending);
             stack.Push(new Item { Path = p, IsDir = true });
         }
@@ -256,7 +257,7 @@ public sealed class PiiScanner
                 FileAttributes a = fsi.Attributes;
                 if ((a & FileAttributes.Directory) != 0)
                 {
-                    if (nameSet.Contains(fsi.Name) || Excluded(fsi.FullName)) continue;
+                    if (nameSet.Contains(fsi.Name) || Excluded(fsi.FullName) || rootPaths.Contains(fsi.FullName)) continue;
                     if ((a & FileAttributes.ReparsePoint) != 0 && IsLink(fsi.FullName)) continue;   // no symlink/junction loops
                     batch.Add(new Item { Path = fsi.FullName, IsDir = true });
                 }
@@ -438,7 +439,11 @@ function Get-DefaultScanRoot {
 # =====================================================================================
 if ($Path) {
     $candidates = @($Path | ForEach-Object {
-        if ($_ -match '[\*\?\[]') { Resolve-Path -Path $_ -ErrorAction SilentlyContinue | ForEach-Object ProviderPath } else { $_ }
+        if (Test-Path -LiteralPath $_ -PathType Container) {
+            (Resolve-Path -LiteralPath $_).ProviderPath
+        } elseif ($_ -match '[\*\?\[]') {
+            Resolve-Path -Path $_ -ErrorAction SilentlyContinue | ForEach-Object ProviderPath
+        } else { $_ }
     })
 } else {
     $candidates = @(Get-DefaultScanRoot)

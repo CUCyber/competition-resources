@@ -729,7 +729,9 @@ if ($PdfTextTool) {
 if ($Threads -eq 0) { $Threads = [Math]::Min(8,[Math]::Max(2,[Environment]::ProcessorCount)) }
 $textExt = @('.txt','.csv','.tsv','.psv','.log','.out','.rpt','.prn','.json','.jsonl','.ndjson','.xml','.html','.htm','.mht','.mhtml','.sql','.md','.rtf','.tex','.ini','.cfg','.conf','.config','.properties','.env','.yaml','.yml','.eml','.mbox','.vcf','.ldif','.ics','.bak','.dat','.tmp','.asc','.ps1','.bat','.cmd','.vbs','.js','.py')
 if ($Extension) { $textExt = @($Extension | ForEach-Object { '.' + $_.Trim().TrimStart('.') } | Select-Object -Unique) }
-$excludedPaths = @($ExcludePath | ForEach-Object { [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($_)) })
+$excludedPaths = @($ExcludePath | ForEach-Object {
+    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath([Environment]::ExpandEnvironmentVariables($_))
+})
 if ($PSCommandPath) { $excludedPaths += $PSCommandPath }
 $reportPath = $null; $errorPath = $null
 if ($OutputPath) {

@@ -2,19 +2,22 @@
 # Author: Dylan Harvey - Modified by BlueNitrobotX
 # Script for disabling common runkeys.
 
-# List of RunKey locations to check
-$RunKeys = @(
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run",
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce",
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunServices",
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce",
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServices",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run"
-)
+$ErrorActionPreference = 'Stop'
+
+# SYSTEM's HKCU is its own profile. Use the loaded hives of interactive users.
+$userHives = @('HKCU:')
+if ([Security.Principal.WindowsIdentity]::GetCurrent().IsSystem) {
+    $userHives = @(Get-CimInstance Win32_LogonSession -Filter 'LogonType = 2 OR LogonType = 10 OR LogonType = 11 OR LogonType = 12' |
+        Get-CimAssociatedInstance -Association Win32_LoggedOnUser -ResultClassName Win32_Account |
+        Select-Object -ExpandProperty SID -Unique |
+        Where-Object { $_ -match '^S-1-(5-21|12-1)-' } |
+        ForEach-Object { "Registry::HKEY_USERS\$_" })
+}
+$RunKeys = foreach ($hive in @($userHives) + 'HKLM:') {
+    foreach ($key in 'Run', 'RunOnce', 'RunServices', 'RunServicesOnce', 'Policies\Explorer\Run') {
+        "$hive\Software\Microsoft\Windows\CurrentVersion\$key"
+    }
+}
 
 Write-Host "`n====== Checking RunKeys ======`n"
 
@@ -24,27 +27,22 @@ foreach ($KeyPath in $RunKeys) {
     if (Test-Path $KeyPath) {
         Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Processing: $KeyPath"
         
-        # Create ScriptDisabled path
-        $DisabledPath = Join-Path $KeyPath "ScriptDisabled"
-        # Double check and force creation upon failure
-        if (-not (Test-Path $DisabledPath)) {
-            New-Item -Path $DisabledPath -Force | Out-Null
-        }
+        $key = (Get-Item -LiteralPath $KeyPath).OpenSubKey('', $true)
+        $disabledKey = $null
+        try {
+            $disabledKey = $key.CreateSubKey('ScriptDisabled')
+            foreach ($Name in $key.GetValueNames()) {
+                $Data = $key.GetValue($Name, $null, 'DoNotExpandEnvironmentNames')
+                $kind = $key.GetValueKind($Name)
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] - Disabling: $Name" -ForegroundColor Yellow
 
-        # Check the keypath and get all the names
-        $Values = Get-ItemProperty -Path $KeyPath
-        $ValueNames = $Values.PSObject.Properties.Name | Where-Object { 
-            $_ -notmatch "PSPath|PSParentPath|PSChildName|PSDrive|PSProvider|ScriptDisabled" 
+                $disabledKey.SetValue($Name, $Data, $kind)
+                $key.DeleteValue($Name)
+            }
         }
-
-        # Print report for each name
-        foreach ($Name in $ValueNames) {
-            $Data = (Get-ItemProperty -Path $KeyPath -Name $Name).$Name
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] - Disabling: $Name" -ForegroundColor Yellow
-            
-            New-ItemProperty -Path $DisabledPath -Name $Name -Value $Data -PropertyType String -Force | Out-Null
-            
-            Remove-ItemProperty -Path $KeyPath -Name $Name
+        finally {
+            if ($disabledKey) { $disabledKey.Close() }
+            if ($key) { $key.Close() }
         }
     }
 }

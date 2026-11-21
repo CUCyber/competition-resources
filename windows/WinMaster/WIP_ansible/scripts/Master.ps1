@@ -384,7 +384,7 @@ if($suspiciousScheduledTasksFound) {
 }
 
 # Alert on detected ssh
-if( (Get-Service -Name sshd -ErrorAction SilentlyContinue) -or (Get-Service -Name ssh-agent -ErrorAction SilentlyContinue) ) {
+if(Get-Service -Name sshd -ErrorAction SilentlyContinue) {
     Write-Host -ForegroundColor Yellow "* Service sshd is installed"
 }
 
@@ -446,7 +446,7 @@ if($doRemediation -eq 'y') {
     }
 
     # Disable powershell profiles if any found
-    if($profileDetected) {
+    if($profileDetected -and (Test-Path -LiteralPath $PROFILE)) {
         try {
             Rename-Item $PROFILE "$($PROFILE).disabled"
             Write-Host -ForegroundColor Green "Disabled: Powershell Profiles"
@@ -468,6 +468,7 @@ if($doRemediation -eq 'y') {
     # Patch nosferatu
     try {
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v RunAsPPL /t REG_DWORD /d 1 /f
+        if ($LASTEXITCODE -ne 0) { throw "reg add failed with exit code $LASTEXITCODE" }
         Write-Host -ForegroundColor Green "Patched: Nosferatu"
     }
     catch {
